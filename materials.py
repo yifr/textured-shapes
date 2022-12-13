@@ -12,6 +12,28 @@ except ImportError:
 
 PROCEDURAL_TEXTURES = ["Voronoi Texture", "Wave Texture", "Musgrave Texture", "Noise Texture", "Magic Texture"]
 
+def default_material(obj, color=None, material_name="default"):
+    mat = bpy.data.materials.new(name=material_name)
+    mat.use_nodes = True
+    nodes = mat.node_tree.nodes
+    bsdf = nodes["Principled BSDF"]
+
+    if color == "random":
+        color = np.random.rand(4)
+        color[-1] = 1
+
+    bsdf.inputs[0].default_value = color
+
+    nodes["Material Output"].location = (800, 0)
+    bsdf.location = (600, 0)
+
+    if obj.data.materials:
+        obj.data.materials[0] = mat
+    else:
+        obj.data.materials.append(mat)
+
+    return
+
 
 def Shader(name):
     name = name.split(" ")[0]
@@ -83,7 +105,7 @@ def add_material(texture_config, obj=None, material_name="Material"):
     links = mat.node_tree.links
     links.new(emission_node.outputs[0], nodes["Material Output"].inputs[0])
 
-    # Coordinate Texture -> Mapping Node 
+    # Coordinate Texture -> Mapping Node
     links.new(coordinate_node.outputs["Object"], mapping_node.inputs[0])
 
     # Link texture nodes:
@@ -96,7 +118,7 @@ def add_material(texture_config, obj=None, material_name="Material"):
 
         if upstream_node == "Mapping":
             links.new(mapping_node.outputs[0], texture.inputs[0])
-        
+
         if downstream_node == "ColorRamp":
             links.new(texture.outputs[output_feature], color_ramp.inputs[0])
         else:
