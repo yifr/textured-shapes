@@ -1,7 +1,7 @@
 import os
 import sys
 import bpy
-sys.path.append("/Users/yonifriedman/Projects/GestaltNeurophys")
+sys.path.append("/home/yyf/textured-shapes")
 
 import util
 import materials
@@ -34,7 +34,7 @@ def create_object():
     n_big = 1   # n big/medium/small shapes that get concatenated
     n_med = 0
     n_small = 0
-    favour_vec = np.random.random(3)  # which 3D dimension is preferred
+    favour_vec = np.random.random(3).tolist()  # which 3D dimension is preferred
     amount = np.random.randint(5,10)  # number of extrusion
     face_overlap = 1
     rand_loc = 0
@@ -53,7 +53,7 @@ def create_object():
     params["n_med"] = n_med
     params["n_small"] = n_small
     params["favour_vec"] = favour_vec
-    params["extrusions"] = amount
+    params["extrusions"] = int(amount)
     params["face_overlap"] = face_overlap
     params["rand_loc"] = rand_loc
     params["rand_rot"] = rand_rot
@@ -61,7 +61,7 @@ def create_object():
     params["transform_seed"] = transform_seed
     params["is_subsurf"] = is_subsurf
     params["subsurf_subdivisions"] = subsurf_subdivisions
-    params["is_bevel"] = is_bevel
+    params["is_bevel"] = int(is_bevel)
 
     bpy.ops.mesh.shape_generator(
         random_seed=seed,
@@ -142,14 +142,14 @@ def set_render_settings():
     scene.render.resolution_x = 512
     scene.render.resolution_y = 512
 
-    scene.render.image_settings.color_mode = "BW"
     scene.render.image_settings.compression = 0
-    scene.cycles.samples = self.samples
+    scene.cycles.samples = 128
 
     scene.cycles.device = "GPU"
 
     preferences = bpy.context.preferences
     cycles_preferences = preferences.addons["cycles"].preferences
+    device_type = "CUDA"
     cycles_preferences.compute_device_type = device_type
 
     activated_gpus = []
@@ -209,7 +209,7 @@ def generate_passes(scene_dir):
     normal_output_node.name = "Normal_Output"
     normal_output_node.format.file_format = "OPEN_EXR"
     normal_output_node.format.color_mode = "RGB"
-    path = os.path.join(self.scene_dir, "normals")
+    path = os.path.join(scene_dir, "normals")
     normal_output_node.base_path = path
     normal_output_node.location = 600, -300
 
@@ -223,7 +223,7 @@ def generate_passes(scene_dir):
     depth_output_node.name = "Depth_Output"
     depth_output_node.format.file_format = "OPEN_EXR"
     depth_output_node.format.color_mode = "RGB"
-    path = os.path.join(self.scene_dir, "depth")
+    path = os.path.join(scene_dir, "depth")
     depth_output_node.base_path = path
     depth_output_node.location = 600, 0
 
@@ -252,21 +252,22 @@ def generate_passes(scene_dir):
 
 def render_scenes(scene_num):
     scene_path = f"/om2/user/yyf/textured-shapes/data/scene_{scene_num:03d}/"
+    if not os.path.exists(scene_path):
+        os.makedirs(scene_path)
+
     texture_configs = glob("TextureSamples/configs/*.json")
     obj_params, obj, background = setup_scene()
 
     # save object params
-    with open(scene_path, "obj_params.json", "w") as f:
+    with open(os.path.join(scene_path, "obj_params.json"), "w") as f:
         json.dump(obj_params, f)
-
-    # save object mesh
-    bpy.context.view_layer.objects.active = obj
-    obj_path = os.path.join(scene_path, "object.obj")
-    bpy.ops.export_scene.obj(filepath=obj_path, use_selection=True)
 
     for i, texture_config in enumerate(texture_configs):
         texture_params = json.load(open(texture_config, "r"))
-        texture_path = os.path.join(scene_path, f"texture_{i:02d}")
+        texture_path = os.path.join(scene_path, f"texture_{i:02d}/")
+        if not os.path.exists(texture_path):
+            os.makedirs(texture_path)
+
         with open(os.path.join(texture_path, "texture_params.json"), "w") as f:
             json.dump(texture_params, f)
 
@@ -288,9 +289,13 @@ def render_scenes(scene_num):
     bpy.context.scene.render.filepath = os.path.join(scene_path, f"shaded/")
     bpy.ops.render.render(write_still=True, animation=True)
 
+    # save object mesh
+    bpy.context.view_layer.objects.active = obj
+    obj_path = os.path.join(scene_path, "object.obj")
+    bpy.ops.export_scene.obj(filepath=obj_path, use_selection=True)
 
 if __name__=="__main__":
     set_render_settings()
-    for i in range(100):
+    for i in range(50, 100):
         delete_all()
         render_scenes(i)
