@@ -60,12 +60,12 @@ def look_atxy(cam_location, point):
 
     mat = np.concatenate((mat, hom_vec), axis=-2)
     return mat
-    
+
 def sample_spherical(n, radius=1.):
     xyz = np.random.normal(size=(n,3))
     xyz = normalize(xyz) * radius
     return xyz
-    
+
 def sample_yaw(n, radius=1.):
     xyz = np.random.normal(size=(n,3))
     xyz[:,1] = 0
@@ -79,8 +79,8 @@ def sample_xy(n, trans):
     z = np.zeros((n,1))
     xyz = np.concatenate((x,y,z), axis=1)
     return xyz
-    
-def sample_Controlled_yaw(n, radius=1.):
+
+def sample_controlled_yaw(n, radius=1.):
     xyz = np.zeros(shape=(n,3))
     stepsize = 2/n*np.pi
     xyz[:,1] = np.sin(45 * math.pi / 180)
@@ -392,8 +392,8 @@ def get_specific_views(sphere_radius):
     translations = [(r, 0, 0), (0.0001, r*-0.999, 0.0001),
                     (a*r, a*r, a*-r), (a*-r, a*r, a*r)]
     return np.array(translations)
-    
-    
+
+
 def get_thomas_views(sphere_radius,n):
     translations = [(r, 0, 0), (0.0001, r*-0.999, 0.0001),
                     (a*r, a*r, a*-r), (a*-r, a*r, a*r)]

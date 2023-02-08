@@ -14,6 +14,8 @@ print(scene_dir)
 scenes = glob(scene_dir)
 print("Found ", len(scenes), " scenes")
 for i, scene_path in enumerate(scenes):
+    if "render_pass" in scene_path:
+        continue
     movie_names = scene_path.split("/")
     movie_name = "_".join(movie_names[-3:-1])
     if not os.path.exists(args.output_dir):
