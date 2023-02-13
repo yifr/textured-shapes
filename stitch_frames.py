@@ -10,6 +10,7 @@ parser.add_argument("--output_dir", type=str, default="movies")
 parser.add_argument("--start_scene", type=int, default=0)
 parser.add_argument("--num_scenes", type=int, default=-1, help="If greater than 0, will only render num_scenes scenes")
 parser.add_argument("--experiment_name", type=str, default="", help="Will append this string to the start of the output file")
+parser.add_argument("--frame_rate", type=int, default=15)
 args = parser.parse_args()
 
 if not os.path.exists(args.output_dir):
@@ -34,7 +35,7 @@ for i, scene_path in enumerate(scenes):
     output_path = os.path.join(args.output_dir, f"{movie_name}.mp4")
     try:
         subprocess.run([
-            f"ffmpeg","-y", "-framerate", "16", "-i",
+            f"ffmpeg","-y", "-framerate", f"{args.frame_rate}", "-i",
             f"{shaded_imgs}", "-pix_fmt", "yuv420p",  "-c:v", "libx264", f"{output_path}"], check=True
         )
     except Exception as e:
@@ -52,7 +53,7 @@ for i, scene_path in enumerate(scenes):
         texture_imgs = os.path.join(texture_dir, "%04d.png")
         try:
             subprocess.run([
-                f"ffmpeg","-y", "-framerate", "16", "-i",
+                f"ffmpeg","-y", "-framerate", f"{args.frame_rate}", "-i",
                 f"{texture_imgs}", "-pix_fmt", "yuv420p",  "-c:v", "libx264", f"{output_path}"], check=True
             )
         except Exception as e:
@@ -66,7 +67,7 @@ for i, scene_path in enumerate(scenes):
             output_path = os.path.join(args.output_dir, f"{movie_name}-flow.mp4")
             try:
                 subprocess.run([
-                    f"ffmpeg","-y", "-framerate", "16", "-i",
+                    f"ffmpeg","-y", "-framerate", f"{args.frame_rate}", "-i",
                     f"{flow_imgs}", "-pix_fmt", "yuv420p",  "-c:v", "libx264", f"{output_path}"], check=True
                 )
             except Exception as e:
