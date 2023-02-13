@@ -9,7 +9,7 @@
 #SBATCH --gres=gpu:1
 #SBATCH -p tenenbaum
 #SBATCH --mem=2G
-#SBATCH --array=9
+#SBATCH --array=6,7,8
 #SBATCH --output=/om2/user/yyf/%x.%A_%a.log
 
 IDX=$SLURM_ARRAY_TASK_ID

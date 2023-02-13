@@ -2,7 +2,9 @@ import os
 import sys
 import subprocess
 from glob import glob
+from PIL import Image
 import argparse
+import imageio
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--root_dir", type=str, default="scenes", help="root directory with all the scenes")
@@ -16,6 +18,15 @@ args = parser.parse_args()
 if not os.path.exists(args.output_dir):
     os.makedirs(args.output_dir)
 
+
+def create_video(input_images, output_path, frame_rate):
+    images = []
+    for img_path in input_images:
+        images.append(imageio.imread(img_path))
+    print("Saving gif to: ", output_path)
+    imageio.mimsave(output_path, images, fps=frame_rate)
+
+
 scene_dir = os.path.join(args.root_dir, "scene_*")
 scenes = sorted(glob(scene_dir))
 scenes = scenes[args.start_scene:]
@@ -27,20 +38,12 @@ for i, scene_path in enumerate(scenes):
             break
 
     # Render shaded video
-    shaded_imgs = os.path.join(scene_path, "shaded", "%04d.png")
-    movie_name = scene_path.split("/")[-1] + "-shaded.mp4"
+    img_paths = sorted(glob(os.path.join(scene_path, "shaded", "*.png")))
+    movie_name = scene_path.split("/")[-1] + "-shaded"
     if args.experiment_name:
         movie_name = args.experiment_name + "-" + movie_name
-
-    output_path = os.path.join(args.output_dir, f"{movie_name}.mp4")
-    try:
-        subprocess.run([
-            f"ffmpeg","-y", "-framerate", f"{args.frame_rate}", "-i",
-            f"{shaded_imgs}", "-pix_fmt", "yuv420p",  "-c:v", "libx264", f"{output_path}"], check=True
-        )
-    except Exception as e:
-        print(e)
-        sys.exit(1)
+    output_path = os.path.join(args.output_dir, f"{movie_name}.gif")
+    create_video(img_paths, output_path, args.frame_rate)
 
     # Render textured videos
     texture_dirs = glob(os.path.join(scene_path, "texture*"))
@@ -49,28 +52,14 @@ for i, scene_path in enumerate(scenes):
         movie_name = "-".join(movie_names[-2:])
         if args.experiment_name:
             movie_name = args.experiment_name + "-" + movie_name
-        output_path = os.path.join(args.output_dir, f"{movie_name}.mp4")
-        texture_imgs = os.path.join(texture_dir, "%04d.png")
-        try:
-            subprocess.run([
-                f"ffmpeg","-y", "-framerate", f"{args.frame_rate}", "-i",
-                f"{texture_imgs}", "-pix_fmt", "yuv420p",  "-c:v", "libx264", f"{output_path}"], check=True
-            )
-        except Exception as e:
-            print(e)
-            sys.exit(1)
+        output_path = os.path.join(args.output_dir, f"{movie_name}.gif")
+        img_paths = sorted(glob(os.path.join(texture_dir, "*.png")))
+        create_video(img_paths, output_path, args.frame_rate)
 
         # Check for FlowFormer videos
         texture_flows = glob(os.path.join(texture_dir, "FlowFormer", "*.png"))
         if len(texture_flows) > 0:
-            flow_imgs = os.path.join(texture_dir, "FlowFormer", "%04d.png")
-            output_path = os.path.join(args.output_dir, f"{movie_name}-flow.mp4")
-            try:
-                subprocess.run([
-                    f"ffmpeg","-y", "-framerate", f"{args.frame_rate}", "-i",
-                    f"{flow_imgs}", "-pix_fmt", "yuv420p",  "-c:v", "libx264", f"{output_path}"], check=True
-                )
-            except Exception as e:
-                print(e)
-                sys.exit(1)
+            img_paths = sorted(glob(os.path.join(texture_dir, "FlowFormer", "*.png")))
+            output_path = os.path.join(args.output_dir, f"{movie_name}-flow.gif")
+            create_video(img_paths, output_path, args.frame_rate)
 

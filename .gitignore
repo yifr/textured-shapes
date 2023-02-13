@@ -1,6 +1,7 @@
 *.pyc
 *.mp4
 *.png
+*.gif
 __pycache__/*
 .DS_Store
 *.hdr
