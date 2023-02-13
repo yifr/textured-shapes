@@ -3,7 +3,9 @@ import sys
 import bpy
 sys.path.append("/home/yyf/textured-shapes")
 
+import shape_utils
 import util
+import datetime
 import materials
 import json
 import pickle
@@ -16,7 +18,9 @@ from BlenderArgparse import ArgParser
 parser = ArgParser()
 parser.add_argument("--start_scene", type=int, default=0)
 parser.add_argument("--n_scenes", type=int, default=1)
-parser.add_argument("--data_dir", type=str, default="/om2/user/yyf/textured-shapes/data2")
+parser.add_argument("--data_dir", type=str, default="/om2/user/yyf/textured-shapes/scenes")
+parser.add_argument("--check_existing_obj", action="store_true")
+parser.add_argument("--render_pass_only", action="store_true")
 args = parser.parse_args()
 
 """
@@ -33,69 +37,7 @@ Save:
 6. The rendered images
 """
 
-def create_object():
-    params = {}
-    seed = np.random.randint(0, 10000)
-    mirror_x = 0
-    mirror_y = 0
-    mirror_z = 0
-    n_big = 1   # n big/medium/small shapes that get concatenated
-    n_med = 0
-    n_small = 0
-    favour_vec = np.random.random(3).tolist()  # which 3D dimension is preferred
-    amount = np.random.randint(5,10)  # number of extrusion
-    face_overlap = 1
-    rand_loc = 0
-    rand_rot = 1
-    rand_scale = 0
-    transform_seed = 0
-    is_subsurf = np.random.choice([0, 1]) # whether you do subsurface divisions that smooth it out. 1 will make it smooth
-    subsurf_subdivisions = 5
-    is_bevel = np.random.choice([0, 1]) # bevels it
-
-    params["seed"] = seed
-    params["mirror_x"] = mirror_x
-    params["mirror_y"] = mirror_y
-    params["mirror_z"] = mirror_z
-    params["n_big"] = n_big
-    params["n_med"] = n_med
-    params["n_small"] = n_small
-    params["favour_vec"] = favour_vec
-    params["extrusions"] = int(amount)
-    params["face_overlap"] = face_overlap
-    params["rand_loc"] = rand_loc
-    params["rand_rot"] = rand_rot
-    params["rand_scale"] = rand_scale
-    params["transform_seed"] = transform_seed
-    params["is_subsurf"] = int(is_subsurf)
-    params["subsurf_subdivisions"] = subsurf_subdivisions
-    params["is_bevel"] = int(is_bevel)
-
-    bpy.ops.mesh.shape_generator(
-        random_seed=seed,
-        mirror_x=int(mirror_x),
-        mirror_y=int(mirror_y),
-        mirror_z=int(mirror_z),
-        big_shape_num=int(n_big),
-        medium_shape_num=int(n_med),
-        small_shape_num=int(n_small),
-        favour_vec=favour_vec,
-        amount=int(amount),
-        prevent_ovelapping_faces=int(face_overlap),
-        randomize_location=int(rand_loc),
-        randomize_rotation=int(rand_rot),
-        randomize_scale=int(rand_scale),
-        random_transform_seed=int(transform_seed),
-        is_subsurf=int(is_subsurf),
-        subsurf_subdivisions=int(subsurf_subdivisions),
-        is_bevel=int(is_bevel),
-    )
-    bpy.ops.object.origin_set(type='GEOMETRY_ORIGIN', center='MEDIAN')
-    bpy.ops.object.join()
-
-    return params
-
-def setup_scene(scene_num=0, scene_path=""):
+def setup_scene(scene_path="", args=None):
     bpy.context.scene.use_nodes = False
 
     # Get the environment node tree of the current scene
@@ -121,7 +63,15 @@ def setup_scene(scene_num=0, scene_path=""):
     background = bpy.context.object
 
     # Add foreground object
-    object_params = create_object()
+    obj_params_file = os.path.join(scene_path, 'obj_params.json')
+    if os.path.exists(obj_params_file) and args.check_existing_obj:
+        object_params = json.load(open(obj_params_file, 'rb'))
+        shape_utils.load_shape(object_params)
+    else:
+        object_params = shape_utils.create_shape()
+        with open(obj_params_file, "w") as f:
+            json.dump(object_params, f)
+
     obj = bpy.context.object
     obj.rotation_euler = np.random.random(3) * 2 * np.pi
 
@@ -172,9 +122,9 @@ def set_render_settings():
     # Set properties to increase speed of render time
     scene = bpy.context.scene
     scene.render.engine = "CYCLES"  # use cycles for headless rendering
-    scene.render.resolution_x = 256
-    scene.render.resolution_y = 256
-    scene.cycles.tile_size = 64
+    scene.render.resolution_x = 1024
+    scene.render.resolution_y = 1024
+    scene.cycles.tile_size = 128
 
     scene.render.image_settings.compression = 0
     scene.cycles.samples = 64
@@ -227,7 +177,7 @@ def generate_passes(scene_dir):
     links = world_node_tree.links
     link = links.new(node_environment.outputs["Color"], node_background.inputs["Color"])
     link = links.new(node_background.outputs["Background"], node_output.inputs["Surface"])
-    bpy.data.worlds["World"].node_tree.nodes["Background"].inputs[1].default_value = 2.5
+    bpy.data.worlds["World"].node_tree.nodes["Background"].inputs[1].default_value = 1
 
     objects = bpy.data.objects
     scene = bpy.context.scene
@@ -330,26 +280,23 @@ def generate_passes(scene_dir):
 
     return
 
-def render_scenes(scene_num):
+def render_scenes(scene_num, args):
     bpy.ops.ed.flush_edits()
     delete_all()
     set_render_settings()
-    scene_path = f"/om2/user/yyf/textured-shapes/data/scene_{scene_num:03d}/"
+    scene_path = os.path.join(args.data_dir, f"scene_{scene_num:05d}")
     if not os.path.exists(scene_path):
         os.makedirs(scene_path)
-        flow_only = False
     else:
-        print(f"Scene #{scene_num:03d} already exists. Re-rendering flow...")
-        flow_only = True
+        render_log = os.path.join(scene_path, "render_logs.txt")
+        if os.path.exists(render_log):
+            os.remove(render_log)
 
+    render_pass_only = args.render_pass_only
     texture_configs = glob("TextureSamples/configs/*.json")
-    obj_params, obj, background = setup_scene(scene_path=scene_path)
+    obj_params, obj, background = setup_scene(scene_path=scene_path, args=args)
 
-    # save object params
-    with open(os.path.join(scene_path, "obj_params.json"), "w") as f:
-        json.dump(obj_params, f)
-
-    # Subset 9 textures
+    # Subset 7 textures
     include_texture_idxs = [0, 7, 13, 16, 21, 22, 25]
     for i, texture_config in enumerate(texture_configs):
         if i not in include_texture_idxs:
@@ -369,11 +316,11 @@ def render_scenes(scene_num):
         background.scale = (3, 3, 3)
 
         bpy.context.scene.render.filepath = texture_path
-        if not flow_only:
+        if not args.render_pass_only:
             bpy.ops.render.render(write_still=True, animation=True)
 
     # Render shaded + geometry passes
-    bpy.remove(background, do_unlink=True)
+    bpy.data.objects.remove(background, do_unlink=True)
     bpy.context.scene.render.film_transparent = True
 
     # Get rid of materials
@@ -383,14 +330,21 @@ def render_scenes(scene_num):
     mask_filepath = os.path.join(scene_path, "render_passes/")
     generate_passes(mask_filepath)
     bpy.context.scene.render.filepath = os.path.join(scene_path, f"shaded/")
+
+    # Up the quality for ground truth rendering
+    bpy.context.scene.cycles.samples = 256
+    bpy.context.scene.cycles.max_bounces = 8
     bpy.context.scene.cycles.use_denoising = True
     bpy.context.scene.cycles.denoising_prefilter = 'FAST'
     bpy.ops.render.render(write_still=True, animation=True)
 
     # save object mesh
-    bpy.context.view_layer.objects.active = obj
-    blend_path = os.path.join(scene_path, "scene.blend")
+    # bpy.context.view_layer.objects.active = obj
+    # blend_path = os.path.join(scene_path, "scene.blend")
     # bpy.ops.wm.save_as_mainfile(filepath=blend_path)
+
+    with open(os.path.join(scene_path, "render_log.txt"), "w") as outfile:
+        outfile.write(f"Rendering Completed: {datetime.datetime.now()}")
 
 if __name__=="__main__":
     if not os.path.exists(args.data_dir):
@@ -401,4 +355,4 @@ if __name__=="__main__":
     end_scene = start_scene + args.n_scenes
     print(f"Rendering scenes: {start_scene}-{end_scene}")
     for i in range(start_scene, end_scene):
-        render_scenes(i)
+        render_scenes(i, args)
