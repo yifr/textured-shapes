@@ -1,6 +1,8 @@
 import numpy as np
+import glob
 import json
 import bpy
+import os
 
 def create_shape():
     params = {}
@@ -61,6 +63,7 @@ def create_shape():
     )
     bpy.ops.object.origin_set(type='GEOMETRY_ORIGIN', center='MEDIAN')
     bpy.ops.object.join()
+    bpy.context.object.scale = (0.3, 0.3, 0.3)
 
     return params
 
@@ -103,3 +106,30 @@ def load_shape(params):
         is_bevel=int(is_bevel),
     )
     bpy.ops.object.origin_set(type='GEOMETRY_ORIGIN', center='MEDIAN')
+    # scale 0.3
+
+def sample_shapenet_obj(obj_file=None):
+    if obj_file is not None:
+        bpy.ops.import_scene.obj(filepath=obj_file)
+        bpy.ops.object.origin_set(type='GEOMETRY_ORIGIN', center='MEDIAN')
+        return obj_file
+
+    seed = 42
+    shapenet_dir = "/om/data/public/ShapeNet/ShapeNetCore.v2/"
+    taxonomy_opts = [str(f.path) for f in os.scandir(shapenet_dir) if f.is_dir()]
+    synset_opt = np.random.choice(taxonomy_opts)
+    synset_dir = os.path.join(shapenet_dir, synset_opt)
+    synset_shape = np.random.choice(glob.glob(synset_dir + "/*"))
+    shapenet_obj = os.path.join(synset_dir, synset_shape, "models/model_normalized.obj")
+
+    # deselect other objects
+    bpy.ops.object.select_all(action='DESELECT')
+
+    # import shapenet object
+    bpy.ops.import_scene.obj(filepath=shapenet_obj)
+    bpy.ops.object.join()
+    bpy.ops.transform.resize(value=(3, 3, 3))
+    bpy.ops.object.origin_set(type='GEOMETRY_ORIGIN', center='MEDIAN')
+
+    return shapenet_obj
+

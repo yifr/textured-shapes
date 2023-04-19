@@ -19,8 +19,11 @@ parser = ArgParser()
 parser.add_argument("--start_scene", type=int, default=0)
 parser.add_argument("--n_scenes", type=int, default=1)
 parser.add_argument("--data_dir", type=str, default="/om2/user/yyf/textured-shapes/scenes")
+parser.add_argument("--shape_type", type=str, default="shapegen")
 parser.add_argument("--check_existing_obj", action="store_true")
 parser.add_argument("--render_pass_only", action="store_true")
+parser.add_argument("--resolution", type=int, default=512)
+parser.add_argument("--no_overwrite", action="store_true")
 args = parser.parse_args()
 
 """
@@ -65,24 +68,40 @@ def setup_scene(scene_path="", args=None):
     # Add foreground object
     obj_params_file = os.path.join(scene_path, 'obj_params.json')
     if os.path.exists(obj_params_file) and args.check_existing_obj:
-        object_params = json.load(open(obj_params_file, 'rb'))
-        shape_utils.load_shape(object_params)
+        if args.shape_type == "shapenet":
+            obj_params = obj_params_file['params']
+            shape_utils.sample_shapenet_obj(obj_params)
+        else:
+            object_params = json.load(open(obj_params_file, 'rb'))
+            shape_utils.load_shape(object_params)
     else:
-        object_params = shape_utils.create_shape()
+        if args.shape_type == "shapenet":
+            object_file = shape_utils.sample_shapenet_obj()
+            object_params = {"params": object_file}
+        else:
+            object_params = shape_utils.create_shape()
+
         with open(obj_params_file, "w") as f:
             json.dump(object_params, f)
 
-    obj = bpy.context.object
+    if args.shape_type == "shapenet":
+        obj = bpy.data.objects["model_normalized"]
+    else:
+        obj = bpy.context.object
     obj.rotation_euler = np.random.random(3) * 2 * np.pi
+    obj.name = "Object"
 
     bpy.ops.object.camera_add(enter_editmode=False, align='VIEW', location=(0, 0, 8), rotation=(0, 0, 0))
     bpy.context.scene.camera = bpy.context.object
     camera = bpy.context.object
+    camera.data.sensor_width = 128.0
+    camera.data.sensor_height = 128.0    # Square sensor
+    util.set_camera_focal_length_in_world_units(camera.data, 525/512*args.resolution) # Set focal length to a common value (kinect)
 
     bpy.data.objects["Plane"].parent = camera
     bpy.data.objects["Plane"].matrix_parent_inverse = camera.matrix_world.inverted()
 
-    sphere_radius = 10
+    sphere_radius = 1.5
     num_observations = 25
     bpy.context.scene.frame_end = num_observations
     cam_locations = util.sample_controlled_yaw(num_observations, sphere_radius) #get_archimedean_spiral(sphere_radius, num_observations)
@@ -108,8 +127,6 @@ def setup_scene(scene_path="", args=None):
         camera.keyframe_insert(data_path="location", frame=i+1)
         camera.keyframe_insert(data_path="rotation_euler", frame=i+1)
 
-    camera.data.lens = 100
-
     return object_params, obj, background
 
 def delete_all():
@@ -122,8 +139,8 @@ def set_render_settings():
     # Set properties to increase speed of render time
     scene = bpy.context.scene
     scene.render.engine = "CYCLES"  # use cycles for headless rendering
-    scene.render.resolution_x = 1024
-    scene.render.resolution_y = 1024
+    scene.render.resolution_x = args.resolution
+    scene.render.resolution_y = args.resolution
     scene.cycles.tile_size = 128
 
     scene.render.image_settings.compression = 0
@@ -281,14 +298,20 @@ def generate_passes(scene_dir):
     return
 
 def render_scenes(scene_num, args):
+    scene_path = os.path.join(args.data_dir, f"scene_{scene_num:05d}")
+    render_log = os.path.join(scene_path, "render_logs.txt")
+
+    if args.no_overwrite and os.path.exists(render_log):
+        print(f"Render log found for scene: {scene_path}")
+        print("Skipping render...")
+        return
+
     bpy.ops.ed.flush_edits()
     delete_all()
     set_render_settings()
-    scene_path = os.path.join(args.data_dir, f"scene_{scene_num:05d}")
     if not os.path.exists(scene_path):
         os.makedirs(scene_path)
     else:
-        render_log = os.path.join(scene_path, "render_logs.txt")
         if os.path.exists(render_log):
             os.remove(render_log)
 
@@ -313,17 +336,21 @@ def render_scenes(scene_num, args):
         background_texture = texture_params["background"]
         materials.add_material(background_texture, background, "background")
         materials.add_material(foreground_texture, obj, "foreground")
-        background.scale = (3, 3, 3)
+        background.scale = (5, 5, 5)
 
         bpy.context.scene.render.filepath = texture_path
         if not args.render_pass_only:
             bpy.ops.render.render(write_still=True, animation=True)
+
+        # blend_path = os.path.join(texture_path, f"texture_{i}.blend")
+        # bpy.ops.wm.save_as_mainfile(filepath=blend_path)
 
     # Render shaded + geometry passes
     bpy.data.objects.remove(background, do_unlink=True)
     bpy.context.scene.render.film_transparent = True
 
     # Get rid of materials
+    obj = bpy.data.objects['Object']
     obj.select_set(True)
     obj.data.materials.clear()
 
@@ -340,8 +367,15 @@ def render_scenes(scene_num, args):
 
     # save object mesh
     # bpy.context.view_layer.objects.active = obj
-    # blend_path = os.path.join(scene_path, "scene.blend")
-    # bpy.ops.wm.save_as_mainfile(filepath=blend_path)
+    blend_path = os.path.join(scene_path, "scene.blend")
+    bpy.ops.wm.save_as_mainfile(filepath=blend_path)
+
+    K = util.get_calibration_matrix_K_from_blender(bpy.data.objects['Camera'].data)
+    with open(os.path.join(scene_path, 'intrinsics.txt'),'w') as intrinsics_file:
+        intrinsics_file.write('%f %f %f 0.\n'%(K[0][0], K[0][2], K[1][2]))
+        intrinsics_file.write('0. 0. 0.\n')
+        intrinsics_file.write('1.\n')
+        intrinsics_file.write('%d %d\n'%(args.resolution, args.resolution))
 
     with open(os.path.join(scene_path, "render_log.txt"), "w") as outfile:
         outfile.write(f"Rendering Completed: {datetime.datetime.now()}")
