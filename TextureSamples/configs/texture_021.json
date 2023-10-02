@@ -1,1 +1,38 @@
-{"foreground": {"Musgrave Texture": {"input_values": {"W": 0.0, "Scale": 20.0, "Detail": 2.0, "Dimension": 2.0, "Lacunarity": 2.0, "Offset": 0.0, "Gain": 1.0}, "texture_type": "Musgrave Texture", "output_name": "Fac", "input_node": "Mapping", "output_node": "ColorRamp", "musgrave_type": "FBM"}}, "background": {"Musgrave Texture": {"input_values": {"W": 0.0, "Scale": 60.0, "Detail": 2.0, "Dimension": 2.0, "Lacunarity": 2.0, "Offset": 0.0, "Gain": 1.0}, "texture_type": "Musgrave Texture", "output_name": "Fac", "input_node": "Mapping", "output_node": "ColorRamp", "musgrave_type": "FBM"}}}
+{
+    "foreground": {
+        "Musgrave Texture": {
+            "input_values": {
+                "W": 0.0,
+                "Scale": 16.5,
+                "Detail": 2.0,
+                "Dimension": 2.0,
+                "Lacunarity": 2.0,
+                "Offset": 0.0,
+                "Gain": 1.0
+            },
+            "texture_type": "Musgrave Texture",
+            "output_name": "Fac",
+            "input_node": "Mapping",
+            "output_node": "ColorRamp",
+            "musgrave_type": "FBM"
+        }
+    },
+    "background": {
+        "Musgrave Texture": {
+            "input_values": {
+                "W": 0.0,
+                "Scale": 60.0,
+                "Detail": 2.0,
+                "Dimension": 2.0,
+                "Lacunarity": 2.0,
+                "Offset": 0.0,
+                "Gain": 1.0
+            },
+            "texture_type": "Musgrave Texture",
+            "output_name": "Fac",
+            "input_node": "Mapping",
+            "output_node": "ColorRamp",
+            "musgrave_type": "FBM"
+        }
+    }
+}

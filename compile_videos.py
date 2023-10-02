@@ -5,7 +5,7 @@ from glob import glob
 from PIL import Image
 import argparse
 from collections import deque
-import imageio
+import imageio.v2 as imageio
 import numpy as np
 
 parser = argparse.ArgumentParser()
@@ -21,41 +21,49 @@ args = parser.parse_args()
 
 if not os.path.exists(args.output_dir):
     os.makedirs(args.output_dir)
-
+    
 
 def create_video(input_images, output_path, frame_rate):
     images = []
+    writer = imageio.get_writer(output_path, format='FFMPEG', mode='I', fps=frame_rate)
     for img_path in input_images:
-        images.append(imageio.imread(img_path))
-    print("Saving gif to: ", output_path)
-    imageio.mimsave(output_path, images, fps=frame_rate)
+        writer.append_data(imageio.imread(img_path))
+    writer.close()
     return
 
 
 # Conditions:
 # 1a. N Frames: [2, full]
 # 1b. Aligned across texture
-# 2. Consecutive frames
-def get_frames(img_paths, n_frames, alignment, skip_frames, shifts):
-    if alignment:
-        frames = img_paths
-    else:
-        frames = deque(img_paths)
-        frames.rotate(shifts)
-        frames = list(frames)
+#2. Consecutive frames
 
-    frames = [frames[(i * skip_frames) % 25] for i in range(n_frames)]
 
-    if n_frames < 25 and n_frames > 2:
-        # Have the shape go back and forth in one video
-        frames.extend(frames[-2:0:-1])
+def shift(frame_list, shift_index=-1, min_shift=10):
+    """
+    Shifts a list of frames by a pre-set (or randomly selected) number of frames.
+    Currently shifts the entire
+    """
+    n_frames = len(frame_list)
+    if shift_index == -1:
+        if min_shift < n_frames:
+            print("min_shift parameter must be less than the number of frames in the video")
+            sys.exit(1)
 
-    return frames
+        shift_index = np.random.randint(min_shift, n_frames - 1)
+
+    new_frame_list = []
+    for i in range(len(frame_list)):
+        if shift_index == n_frames:
+            shift_index = 0
+        new_frame_list.append(frame_list[shift_index])
+        shift_index += 1
+
+    return new_frame_list, shift_index + 1
 
 def compile_all_videos(scene_path, args):
-    n_frames_list = [2, 4, 25]
+    n_frames_list = [90]
     motion_alignment = [True, False]
-    frame_jumps = [1, 3]
+    frame_jumps = [0]
     shift_frames = [5, 8, 11, 14, 17, 20, 23]
 
     # Render shaded video
@@ -66,14 +74,19 @@ def compile_all_videos(scene_path, args):
 
     for n_frames in n_frames_list:
         for alignment in motion_alignment:
-            for skip_frames in frame_jumps:
-                directory_path = os.path.join(args.output_dir, f"frames={n_frames}_aligned={alignment}_skipframes={skip_frames}")
-                if not os.path.exists(directory_path):
-                    os.makedirs(directory_path, exist_ok=True)
 
-                output_path = os.path.join(directory_path, f"{movie_name}.gif")
-                frames = get_frames(img_paths, n_frames, alignment, skip_frames, 0)
-                create_video(frames, output_path, np.min((len(frames), args.frame_rate)))
+            if not os.path.exists(directory_path):
+                os.makedirs(directory_path, exist_ok=True)
+
+            if alignment:
+                frames = img_paths
+            else:
+                frames, shift_idx = shift(frames, min_shift=5)
+
+            directory_path = os.path.join(args.output_dir, f"aligned={alignment}_startframe={shift_idx}")
+            output_path = os.path.join(directory_path, f"{movie_name}.gif")
+            frames = get_frames(img_paths, n_frames, alignment, skip_frames, 0)
+            create_video(frames, output_path, np.min((len(frames), args.frame_rate)))
 
 
     # Render textured videos
@@ -113,6 +126,22 @@ def compile_all_videos(scene_path, args):
 
     return
 
+def render_videos(scene_path, args):
+    img_paths = sorted(glob(os.path.join(scene_path, "shaded", "*.png")))
+    movie_name = scene_path.split("/")[-1] + "-shaded"
+    output_path = os.path.join(args.output_dir, f"{movie_name}.mp4")
+    print(output_path)
+    create_video(img_paths, output_path, 15)
+
+    texture_dirs = sorted(glob(os.path.join(scene_path, "texture*")))
+    for texture_dir in texture_dirs:
+        img_paths = sorted(glob(os.path.join(texture_dir, "*.png")))
+        print(texture_dir)
+        movie_name = "-".join(texture_dir.split("/")[-2:]) 
+        output_path = os.path.join(args.output_dir, f"{movie_name}.mp4")
+        print(output_path)
+        create_video(img_paths, output_path, 15)
+
 
 if __name__=="__main__":
     scene_dir = os.path.join(args.root_dir, "scene_*")
@@ -124,6 +153,6 @@ if __name__=="__main__":
             if i == args.num_scenes:
                 print(f"Finished stitching videos on {args.num_scenes} scenes")
                 break
-
-            compile_all_videos(scene_path, args)
+            render_videos(scene_path, args)
+            #compile_all_videos(scene_path, args)
 

@@ -1,8 +1,9 @@
 import os
 import sys
 import bpy
-sys.path.append("/home/yyf/textured-shapes")
-
+print(os.getcwd())
+sys.path.append(os.getcwd())
+import itertools
 import shape_utils
 import util
 import datetime
@@ -24,6 +25,8 @@ parser.add_argument("--check_existing_obj", action="store_true")
 parser.add_argument("--render_pass_only", action="store_true")
 parser.add_argument("--resolution", type=int, default=512)
 parser.add_argument("--no_overwrite", action="store_true")
+parser.add_argument("--no_render", action="store_true")
+
 args = parser.parse_args()
 
 """
@@ -40,7 +43,116 @@ Save:
 6. The rendered images
 """
 
-def setup_scene(scene_path="", args=None):
+def setup_ecological_scene(scene_path="", args=None):
+    """
+    In this kind of setting, the object is surrounded by walls and the camera moves freely around it.
+    """
+
+    bpy.context.scene.use_nodes = False
+
+    # Get the environment node tree of the current scene
+    world_node_tree = bpy.context.scene.world.node_tree
+    tree_nodes = world_node_tree.nodes
+
+    # Clear all nodes
+    tree_nodes.clear()
+
+    # Add Background node
+    node_background = tree_nodes.new(type='ShaderNodeBackground')
+
+    # Add Output node
+    node_output = tree_nodes.new(type='ShaderNodeOutputWorld')
+    node_output.location = 200,0
+
+    # Link all nodes
+    links = world_node_tree.links
+    link = links.new(node_background.outputs["Background"], node_output.inputs["Surface"])
+
+    # Add background
+    def add_and_name_wall(location, rotation, name, size=10):
+        bpy.ops.mesh.primitive_plane_add(size=size, enter_editmode=False, align='WORLD', location=location, rotation=rotation)
+        bpy.context.selected_objects[0].name = name
+
+    wall_scale = 10
+    init_size = 1
+    offset = wall_scale / 2
+    add_and_name_wall((0, 0, -offset), (0, 0, 0), "left_wall_z", size=init_size)
+    add_and_name_wall((0, 0, offset), (0, 0, 0), "right_wall_z", size=init_size)
+
+    add_and_name_wall((-offset, 0, 0), (0, np.pi/2, 0), "left_wall_x", size=init_size)
+    add_and_name_wall((offset, 0, 0), (0, np.pi/2, 0), "right_wall_x", size=init_size)
+
+    add_and_name_wall((0, -offset, 0), (np.pi/2, 0, 0), "left_wall_y", size=init_size)
+    add_and_name_wall((0, offset, 0), (np.pi/2, 0, 0), "right_wall_y", size=init_size)
+
+    wall_names =  [x[0] + x[1] for x in itertools.product(["left_wall_", "right_wall_"], ["x", "y", "z"])]
+    walls = [bpy.data.objects[wall_name]for wall_name in wall_names]
+
+    # Add foreground object
+    obj_params_file = os.path.join(scene_path, 'obj_params.json')
+    if os.path.exists(obj_params_file) and args.check_existing_obj:
+        if args.shape_type == "shapenet":
+            obj_params = obj_params_file['params']
+            shape_utils.sample_shapenet_obj(obj_params)
+        else:
+            object_params = json.load(open(obj_params_file, 'rb'))
+            shape_utils.load_shape(object_params)
+    else:
+        if args.shape_type == "shapenet":
+            object_file = shape_utils.sample_shapenet_obj()
+            object_params = {"params": object_file}
+        else:
+            object_params = shape_utils.create_shape()
+
+        with open(obj_params_file, "w") as f:
+            json.dump(object_params, f)
+
+    if args.shape_type == "shapenet":
+        obj = bpy.data.objects["model_normalized"]
+    else:
+        obj = bpy.context.object
+
+    obj.rotation_euler = np.random.random(3) * 2 * np.pi
+    obj.name = "Object"
+
+    bpy.ops.object.camera_add(enter_editmode=False, align='VIEW', location=(0, 0, 8), rotation=(0, 0, 0))
+    bpy.context.scene.camera = bpy.context.object
+    camera = bpy.context.object
+    camera.data.sensor_width = 128.0
+    camera.data.sensor_height = 128.0    # Square sensor
+    util.set_camera_focal_length_in_world_units(camera.data, 525/512*args.resolution) # Set focal length to a common value (kinect)
+
+    sphere_radius = 6
+    num_observations = 25
+    bpy.context.scene.frame_end = num_observations
+
+    # TODO: adjust this
+    cam_locations = util.sample_controlled_yaw(num_observations, sphere_radius) #get_archimedean_spiral(sphere_radius, num_observations)
+    obj_location = np.zeros((1,3))
+
+    cv_poses = util.look_at(cam_locations, obj_location)
+    blender_poses = [util.cv_cam2world_to_bcam2world(m) for m in cv_poses]
+    for i, pose in enumerate(blender_poses):
+        # Write out camera pose
+        RT = util.get_world2cam_from_blender_cam(camera)
+        cam2world = RT.inverted()
+        pose_dir = os.path.join(scene_path, "poses")
+        os.makedirs(pose_dir, exist_ok=True)
+        with open(os.path.join(pose_dir, f'{(i+1):06d}.txt'),'w') as pose_file:
+            matrix_flat = []
+            for j in range(4):
+                for k in range(4):
+                    matrix_flat.append(cam2world[j][k])
+            pose_file.write(' '.join(map(str, matrix_flat)) + '\n')
+
+        # insert keyframe for location and rotation
+        camera.matrix_world = pose
+        camera.keyframe_insert(data_path="location", frame=i+1)
+        camera.keyframe_insert(data_path="rotation_euler", frame=i+1)
+
+    return object_params, obj, walls
+
+def setup_default_scene(scene_path="", args=None):
     bpy.context.scene.use_nodes = False
 
     # Get the environment node tree of the current scene
@@ -88,6 +200,7 @@ def setup_scene(scene_path="", args=None):
         obj = bpy.data.objects["model_normalized"]
     else:
         obj = bpy.context.object
+
     obj.rotation_euler = np.random.random(3) * 2 * np.pi
     obj.name = "Object"
 
@@ -153,7 +266,7 @@ def set_render_settings():
 
     preferences = bpy.context.preferences
     cycles_preferences = preferences.addons["cycles"].preferences
-    device_type = "CUDA"
+    device_type = "METAL"
     cycles_preferences.compute_device_type = device_type
 
     activated_gpus = []
@@ -181,7 +294,8 @@ def generate_passes(scene_dir):
     node_environment = tree_nodes.new('ShaderNodeTexEnvironment')
 
     # Load and assign the image to the node property
-    node_environment.image = bpy.data.images.load("/home/yyf/textured-shapes/multi-area-light.hdr") # Relative path
+    cwd = os.getcwd()
+    node_environment.image = bpy.data.images.load(cwd + "/multi-area-light.hdr") # Relative path
     node_environment.location = -300,0
     bpy.context.scene.world.cycles.sampling_method = 'MANUAL'
     bpy.context.scene.world.cycles.sample_map_resolution = 128
@@ -209,7 +323,7 @@ def generate_passes(scene_dir):
     scene.view_layers["ViewLayer"].use_pass_vector = True
 
     for i, obj in enumerate(objects):
-        if obj.name == "Plane":
+        if obj.name == "Plane" or "wall" in obj.name:
             obj.pass_index = 0
         else:
             obj.pass_index = i + 1
@@ -291,13 +405,13 @@ def generate_passes(scene_dir):
 
     # Link Flows
     links.new(render_layers_node.outputs.get("Vector"), split_rgba.inputs.get("Image"))
-    for channel in ["Red", "Green", "Blue", "Alpha"]:
-        links.new(split_rgba.outputs[i], combine_rgba.inputs[i])
+    for j, channel in enumerate(["Red", "Green", "Blue", "Alpha"]):
+        links.new(split_rgba.outputs[i], combine_rgba.inputs[j])
     links.new(combine_rgba.outputs.get("Image"), flow_output_node.inputs.get("Image"))
 
     return
 
-def render_scenes(scene_num, args):
+def render_scenes(scene_num, args, scene_type):
     scene_path = os.path.join(args.data_dir, f"scene_{scene_num:05d}")
     render_log = os.path.join(scene_path, "render_logs.txt")
 
@@ -315,17 +429,20 @@ def render_scenes(scene_num, args):
         if os.path.exists(render_log):
             os.remove(render_log)
 
-    render_pass_only = args.render_pass_only
-    texture_configs = glob("TextureSamples/configs/*.json")
-    obj_params, obj, background = setup_scene(scene_path=scene_path, args=args)
+    texture_configs = sorted(glob("TextureSamples/configs/*.json"))
+    if scene_type == "default":
+        obj_params, obj, background = setup_default_scene(scene_path=scene_path, args=args)
+    elif scene_type == "ecological":
+        obj_params, obj, background_walls = setup_ecological_scene(scene_path=scene_path, args=args)
 
     # Subset 7 textures
     include_texture_idxs = [0, 7, 13, 16, 21, 22, 25]
     for i, texture_config in enumerate(texture_configs):
         if i not in include_texture_idxs:
             continue
+
         texture_params = json.load(open(texture_config, "r"))
-        texture_path = os.path.join(scene_path, f"texture_{i:02d}/")
+        texture_path = os.path.join(os.getcwd(), scene_path, f"texture_{i:02d}/")
         if not os.path.exists(texture_path):
             os.makedirs(texture_path)
 
@@ -334,25 +451,40 @@ def render_scenes(scene_num, args):
 
         foreground_texture = texture_params["foreground"]
         background_texture = texture_params["background"]
-        materials.add_material(background_texture, background, "background")
+        background_scale = 10
+
+        if scene_type == "default":
+            materials.add_material(background_texture, background, "background")
+            background.scale = (background_scale, background_scale, background_scale)
+
+        elif scene_type == "ecological":
+            for k, background in enumerate(background_walls):
+                materials.add_material(background_texture, background, f"background_{k}")
+                background.scale = (background_scale, background_scale, background_scale)
+                
         materials.add_material(foreground_texture, obj, "foreground")
-        background.scale = (5, 5, 5)
+        obj.scale = (1.5, 1.5, 1.5)
 
         bpy.context.scene.render.filepath = texture_path
-        if not args.render_pass_only:
+        if not args.render_pass_only and not args.no_render:
             bpy.ops.render.render(write_still=True, animation=True)
 
-        # blend_path = os.path.join(texture_path, f"texture_{i}.blend")
-        # bpy.ops.wm.save_as_mainfile(filepath=blend_path)
+        blend_path = os.path.join(texture_path, f"texture_{i}.blend")
+        bpy.ops.wm.save_as_mainfile(filepath=blend_path)
 
     # Render shaded + geometry passes
-    bpy.data.objects.remove(background, do_unlink=True)
+    if scene_type == "default":
+        bpy.data.objects.remove(background, do_unlink=True)
+    elif scene_type == "ecological":
+        for wall in background_walls:
+            bpy.data.objects.remove(wall, do_unlink=True)
+
     bpy.context.scene.render.film_transparent = True
 
-    # Get rid of materials
+    # Unlink materials
     obj = bpy.data.objects['Object']
     obj.select_set(True)
-    obj.data.materials.clear()
+    obj.data.materials.pop(index=0)
 
     mask_filepath = os.path.join(scene_path, "render_passes/")
     generate_passes(mask_filepath)
@@ -363,12 +495,13 @@ def render_scenes(scene_num, args):
     bpy.context.scene.cycles.max_bounces = 8
     bpy.context.scene.cycles.use_denoising = True
     bpy.context.scene.cycles.denoising_prefilter = 'FAST'
-    bpy.ops.render.render(write_still=True, animation=True)
-
     # save object mesh
     # bpy.context.view_layer.objects.active = obj
-    blend_path = os.path.join(scene_path, "scene.blend")
+    blend_path = os.path.join(os.getcwd(), scene_path, "scene.blend")
     bpy.ops.wm.save_as_mainfile(filepath=blend_path)
+
+    if not args.no_render:
+        bpy.ops.render.render(write_still=True, animation=True)
 
     K = util.get_calibration_matrix_K_from_blender(bpy.data.objects['Camera'].data)
     with open(os.path.join(scene_path, 'intrinsics.txt'),'w') as intrinsics_file:
@@ -384,9 +517,10 @@ if __name__=="__main__":
     if not os.path.exists(args.data_dir):
         os.makedirs(args.data_dir)
 
-    os.system("nvidia-smi")
+    # os.system("nvidia-smi")
     start_scene = args.start_scene
     end_scene = start_scene + args.n_scenes
+    scene_type = "ecological"
     print(f"Rendering scenes: {start_scene}-{end_scene}")
     for i in range(start_scene, end_scene):
-        render_scenes(i, args)
+        render_scenes(i, args, scene_type)
