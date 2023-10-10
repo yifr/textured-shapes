@@ -5,6 +5,9 @@ import os
 import numpy as np
 import math
 from functools import reduce
+from scipy.spatial.transform import Rotation as R
+from pyquaternion import Quaternion
+
 
 #  VS Code bug workaround for "unreachable code" bug using np.cross
 # see: https://github.com/microsoft/pylance-release/issues/3277
@@ -37,9 +40,7 @@ def look_at(cam_location, point):
     mat = np.concatenate((mat, hom_vec), axis=-2)
     return mat
 
-
-def look_atxy(cam_location, point):
-    # Cam points in positive z direction
+def look_atxy(cam_location, point):# Cam points in positive z direction
     forward = point - cam_location
     forward = normalize(forward)
 
@@ -80,17 +81,39 @@ def sample_xy(n, trans):
     xyz = np.concatenate((x,y,z), axis=1)
     return xyz
 
+
+def sample_trajectory(n, radius):
+    # Create a 2D circle in XY-plane
+    angles = np.linspace(0, 2*np.pi, n, endpoint=False)
+    circle = np.zeros( (n, 3))
+    circle[:, 0] = radius * np.cos(angles)  # x
+    circle[:, 1] = radius * np.sin(angles)  # y
+    circle[:, 2] = np.sin(angles) 
+    
+    rotation = Quaternion(axis=np.random.rand(3), angle=np.random.uniform(0, np.pi / 3))
+    rotation_matrix = rotation.rotation_matrix
+
+    # Apply the rotation to the circle
+    xyz = circle.dot(rotation_matrix)
+    #xyz = circle
+    start_location = np.random.choice(range(n))
+    xyz = np.roll(xyz, start_location, axis=0)
+    if np.random.rand() > 0.5:
+        xyz = np.flip(xyz, axis=0)
+        
+    return xyz
+
+
 def sample_controlled_yaw(n, radius=1.):
-    xyz = np.zeros(shape=(n,3))
+    xyz = np.zeros(shape=(n, 3))
     stepsize = 2/n*np.pi
     xyz[:,1] = np.sin(45 * math.pi / 180)
     for i in range(n):
         xyz[i,0] = np.sin(i*stepsize)
         xyz[i,2] = np.cos(i*stepsize)
+
     xyz = normalize(xyz) * radius
-
     return xyz
-
 
 def set_camera_focal_length_in_world_units(camera_data, focal_length):
     scene = bpy.context.scene
@@ -398,3 +421,35 @@ def get_thomas_views(sphere_radius,n):
     translations = [(r, 0, 0), (0.0001, r*-0.999, 0.0001),
                     (a*r, a*r, a*-r), (a*-r, a*r, a*r)]
     return np.array(translations)
+
+
+def bpy_look_at(camera_location, location):
+    direction = Vector(location - camera_location)
+    # point the cameras '-Z' and use its 'Y' as up
+    rot_quat = direction.to_track_quat('-Z', 'Y')
+
+    # assume we're using euler rotation
+    euler_rotation = rot_quat.to_euler()
+    return euler_rotation
+
+def main():
+    print("\n\n\n\n")
+    obj_location = (0, 0, 0)
+    camera = bpy.data.objects["Camera"]
+    cam_locations = sample_trajectory(25, 5) 
+
+    print(cam_locations)
+
+    blender_poses = [bpy_look_at(m, obj_location) for m in cam_locations]
+    
+    # Save poses
+    for i, pose in enumerate(blender_poses):
+        # insert keyframe for location and rotation
+        camera.rotation_euler = pose
+        camera.location = cam_locations[i] 
+        camera.keyframe_insert(data_path="location", frame=i+1)
+        camera.keyframe_insert(data_path="rotation_euler", frame=i+1)
+
+if __name__=="__main__":
+    from mathutils import Vector
+    main()

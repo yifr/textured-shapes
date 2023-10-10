@@ -26,6 +26,7 @@ parser.add_argument("--render_pass_only", action="store_true")
 parser.add_argument("--resolution", type=int, default=512)
 parser.add_argument("--no_overwrite", action="store_true")
 parser.add_argument("--no_render", action="store_true")
+parser.add_argument("--num_trajectories", type=int, default=1, help="number of camera trajectories to render")
 
 args = parser.parse_args()
 
@@ -122,35 +123,81 @@ def setup_ecological_scene(scene_path="", args=None):
     camera.data.sensor_height = 128.0    # Square sensor
     util.set_camera_focal_length_in_world_units(camera.data, 525/512*args.resolution) # Set focal length to a common value (kinect)
 
-    sphere_radius = 6
-    num_observations = 25
+    return object_params, obj, walls
+
+def load_pose(filename):
+    lines = open(filename, "r").read().splitlines()
+    pose = np.zeros((4, 4), dtype=np.float32)
+    for i in range(16):
+        pose[i // 4, i % 4] = lines[0].split(" ")[i]
+    return pose.squeeze()
+    
+
+def sample_and_set_cam_poses(pose_id, num_observations, sphere_radius, all_poses_dir="poses"):
+    """
+    Chooses trajectory, sets camera poses and saves them to a folder (generates new trajectories if folder is not initialized with positions)
+    Params:
+        scene_path: path to scene (object + texture combo) where cam poses will be saved
+        num_observations: number of steps to generate in trajectory (each one will be rendered out as a keyframe)
+        trajectory_radius: assumes object is centered in world coordinates -- will generate a trajectory with radius around center
+        all_poses_dir: where to look for existing trajectories if sampling is turned on
+        save_limit: Max number of trajectories expected in save path -- if there are fewer than that, a new one will be generated and saved
+
+    Returns:
+        ID of sampled trajectory
+    """
+
+    camera = bpy.context.scene.camera
     bpy.context.scene.frame_end = num_observations
 
-    # TODO: adjust this
-    cam_locations = util.sample_controlled_yaw(num_observations, sphere_radius) #get_archimedean_spiral(sphere_radius, num_observations)
-    obj_location = np.zeros((1,3))
+    all_poses_dir = os.path.join(os.getcwd(), all_poses_dir)
+    if not os.path.exists(all_poses_dir):
+        os.makedirs(all_poses_dir)
 
-    cv_poses = util.look_at(cam_locations, obj_location)
-    blender_poses = [util.cv_cam2world_to_bcam2world(m) for m in cv_poses]
-    for i, pose in enumerate(blender_poses):
-        # Write out camera pose
-        RT = util.get_world2cam_from_blender_cam(camera)
-        cam2world = RT.inverted()
-        pose_dir = os.path.join(scene_path, "poses")
-        os.makedirs(pose_dir, exist_ok=True)
-        with open(os.path.join(pose_dir, f'{(i+1):06d}.txt'),'w') as pose_file:
-            matrix_flat = []
-            for j in range(4):
-                for k in range(4):
-                    matrix_flat.append(cam2world[j][k])
-            pose_file.write(' '.join(map(str, matrix_flat)) + '\n')
+    pose_dir = os.path.join(all_poses_dir, f"pose_{pose_id}")
 
-        # insert keyframe for location and rotation
-        camera.matrix_world = pose
-        camera.keyframe_insert(data_path="location", frame=i+1)
-        camera.keyframe_insert(data_path="rotation_euler", frame=i+1)
+    blender_poses = []
 
-    return object_params, obj, walls
+    if not os.path.exists(pose_dir):
+        cam_locations = util.sample_trajectory(num_observations, sphere_radius) 
+        obj_location = np.zeros((1,3))
+
+        cv_poses = util.look_atxy(cam_locations, obj_location)
+        blender_poses = [util.cv_cam2world_to_bcam2world(m) for m in cv_poses]
+        os.makedirs(pose_dir)
+        
+        # Save poses
+        for i, pose in enumerate(blender_poses):
+            # insert keyframe for location and rotation
+            camera.matrix_world = pose
+            camera.keyframe_insert(data_path="location", frame=i+1)
+            camera.keyframe_insert(data_path="rotation_euler", frame=i+1)
+
+            RT = util.get_world2cam_from_blender_cam(camera)
+            cam2world = RT.inverted()
+
+            # Write out camera pose            
+            with open(os.path.join(pose_dir, f'{(i+1):06d}.txt'),'w') as pose_file:
+                matrix_flat = []
+                for j in range(4):
+                    for k in range(4):
+                        matrix_flat.append(cam2world[j][k])
+                pose_file.write(' '.join(map(str, matrix_flat)) + '\n')
+    else:
+        # Sample and read poses
+        for i in range(num_observations):            
+            pose_file = os.path.join(pose_dir, f"{(i+1):06d}.txt")
+            pose = load_pose(pose_file)
+            
+            pose = util.cv_cam2world_to_bcam2world(pose) # pose is saved in world coordinates, and we want it in camera coordinates
+
+            # insert keyframe for location and rotation
+            camera.matrix_world = pose
+            camera.keyframe_insert(data_path="location", frame=i+1)
+            camera.keyframe_insert(data_path="rotation_euler", frame=i+1)
+
+    return pose_id, pose_dir
+
 
 def setup_default_scene(scene_path="", args=None):
     bpy.context.scene.use_nodes = False
@@ -219,13 +266,19 @@ def setup_default_scene(scene_path="", args=None):
     bpy.context.scene.frame_end = num_observations
     cam_locations = util.sample_controlled_yaw(num_observations, sphere_radius) #get_archimedean_spiral(sphere_radius, num_observations)
     obj_location = np.zeros((1,3))
-
+    
     cv_poses = util.look_at(cam_locations, obj_location)
     blender_poses = [util.cv_cam2world_to_bcam2world(m) for m in cv_poses]
     for i, pose in enumerate(blender_poses):
         # Write out camera pose
         RT = util.get_world2cam_from_blender_cam(camera)
         cam2world = RT.inverted()
+
+        # insert keyframe for location and rotation
+        camera.matrix_world = pose
+        camera.keyframe_insert(data_path="location", frame=i+1)
+        camera.keyframe_insert(data_path="rotation_euler", frame=i+1)
+
         pose_dir = os.path.join(scene_path, "poses")
         os.makedirs(pose_dir, exist_ok=True)
         with open(os.path.join(pose_dir, f'{(i+1):06d}.txt'),'w') as pose_file:
@@ -235,10 +288,6 @@ def setup_default_scene(scene_path="", args=None):
                     matrix_flat.append(cam2world[j][k])
             pose_file.write(' '.join(map(str, matrix_flat)) + '\n')
 
-        # insert keyframe for location and rotation
-        camera.matrix_world = pose
-        camera.keyframe_insert(data_path="location", frame=i+1)
-        camera.keyframe_insert(data_path="rotation_euler", frame=i+1)
 
     return object_params, obj, background
 
@@ -266,7 +315,7 @@ def set_render_settings():
 
     preferences = bpy.context.preferences
     cycles_preferences = preferences.addons["cycles"].preferences
-    device_type = "METAL"
+    device_type = "CUDA"
     cycles_preferences.compute_device_type = device_type
 
     activated_gpus = []
@@ -465,12 +514,18 @@ def render_scenes(scene_num, args, scene_type):
         materials.add_material(foreground_texture, obj, "foreground")
         obj.scale = (1.5, 1.5, 1.5)
 
-        bpy.context.scene.render.filepath = texture_path
-        if not args.render_pass_only and not args.no_render:
-            bpy.ops.render.render(write_still=True, animation=True)
+        pose_ids = np.random.choice(range(1, args.num_trajectories + 1), 2, replace=False)
+        for p, pose_id in enumerate(pose_ids):
+            pose_dir = sample_and_set_cam_poses(pose_id, num_observations=25, sphere_radius=5, all_poses_dir="poses")
+            cam_path = os.path.join(texture_path, f"cam_{p:02d}/")
+            os.makedirs(cam_path, exist_ok=True)
 
-        blend_path = os.path.join(texture_path, f"texture_{i}.blend")
-        bpy.ops.wm.save_as_mainfile(filepath=blend_path)
+            bpy.context.scene.render.filepath = cam_path
+            if not args.render_pass_only and not args.no_render:
+                bpy.ops.render.render(write_still=True, animation=True)
+
+            blend_path = os.path.join(cam_path, f"texture_{i}_cam_{p}.blend")
+            bpy.ops.wm.save_as_mainfile(filepath=blend_path)
 
     # Render shaded + geometry passes
     if scene_type == "default":
