@@ -63,7 +63,7 @@ def create_shape():
     )
     bpy.ops.object.origin_set(type='GEOMETRY_ORIGIN', center='MEDIAN')
     bpy.ops.object.join()
-    bpy.context.object.scale = (0.3, 0.3, 0.3)
+    bpy.context.object.scale = (0.975, 0.975, 0.975)
 
     return params
 

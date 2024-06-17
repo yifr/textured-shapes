@@ -13,5 +13,5 @@
 #SBATCH --output=/om2/user/yyf/%x.%A_%a.log
 
 IDX=$SLURM_ARRAY_TASK_ID
-START_SCENE=$((IDX * 500))
-/scratch2/weka/tenenbaum/yyf/blender-3.2.1-linux-x64/blender -b -noaudio -P generate_scene.py -- --start_scene $START_SCENE --n_scenes 500 --data_dir /om2/user/yyf/textured-shapes/scenes/ --resolution 256 --shape_type shapegen
+START_SCENE=$((IDX * 250))
+/scratch2/weka/tenenbaum/yyf/blender-3.2.1-linux-x64/blender -b -noaudio -P generate_scene.py -- --start_scene $START_SCENE --n_scenes 250 --data_dir /om2/user/yyf/textured-shapes/training-set/ --resolution 512 --shape_type shapegen --max_trajectories 1 --num_trajectories 1 --textures_per_scene 5
