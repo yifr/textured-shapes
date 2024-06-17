@@ -27,6 +27,8 @@ parser.add_argument("--resolution", type=int, default=512)
 parser.add_argument("--no_overwrite", action="store_true")
 parser.add_argument("--no_render", action="store_true")
 parser.add_argument("--num_trajectories", type=int, default=1, help="number of camera trajectories to render")
+parser.add_argument("--max_trajectories", type=int, default=10, help="number of camera trajectories to sample from")
+parser.add_argument("--textures_per_scene", type=int, default=1, help="How many textures to render for a given shape")
 
 args = parser.parse_args()
 
@@ -122,6 +124,7 @@ def setup_ecological_scene(scene_path="", args=None):
     camera.data.sensor_width = 128.0
     camera.data.sensor_height = 128.0    # Square sensor
     util.set_camera_focal_length_in_world_units(camera.data, 525/512*args.resolution) # Set focal length to a common value (kinect)
+    #camera.data.lens = 125
 
     return object_params, obj, walls
 
@@ -131,7 +134,7 @@ def load_pose(filename):
     for i in range(16):
         pose[i // 4, i % 4] = lines[0].split(" ")[i]
     return pose.squeeze()
-    
+
 
 def sample_and_set_cam_poses(pose_id, num_observations, sphere_radius, all_poses_dir="poses"):
     """
@@ -159,13 +162,13 @@ def sample_and_set_cam_poses(pose_id, num_observations, sphere_radius, all_poses
     blender_poses = []
 
     if not os.path.exists(pose_dir):
-        cam_locations = util.sample_trajectory(num_observations, sphere_radius) 
+        cam_locations = util.sample_controlled_yaw(num_observations, sphere_radius)    #util.sample_trajectory(num_observations, sphere_radius)
         obj_location = np.zeros((1,3))
 
         cv_poses = util.look_atxy(cam_locations, obj_location)
         blender_poses = [util.cv_cam2world_to_bcam2world(m) for m in cv_poses]
         os.makedirs(pose_dir)
-        
+
         # Save poses
         for i, pose in enumerate(blender_poses):
             # insert keyframe for location and rotation
@@ -176,7 +179,7 @@ def sample_and_set_cam_poses(pose_id, num_observations, sphere_radius, all_poses
             RT = util.get_world2cam_from_blender_cam(camera)
             cam2world = RT.inverted()
 
-            # Write out camera pose            
+            # Write out camera pose
             with open(os.path.join(pose_dir, f'{(i+1):06d}.txt'),'w') as pose_file:
                 matrix_flat = []
                 for j in range(4):
@@ -185,10 +188,10 @@ def sample_and_set_cam_poses(pose_id, num_observations, sphere_radius, all_poses
                 pose_file.write(' '.join(map(str, matrix_flat)) + '\n')
     else:
         # Sample and read poses
-        for i in range(num_observations):            
+        for i in range(num_observations):
             pose_file = os.path.join(pose_dir, f"{(i+1):06d}.txt")
             pose = load_pose(pose_file)
-            
+
             pose = util.cv_cam2world_to_bcam2world(pose) # pose is saved in world coordinates, and we want it in camera coordinates
 
             # insert keyframe for location and rotation
@@ -261,12 +264,12 @@ def setup_default_scene(scene_path="", args=None):
     bpy.data.objects["Plane"].parent = camera
     bpy.data.objects["Plane"].matrix_parent_inverse = camera.matrix_world.inverted()
 
-    sphere_radius = 1.5
-    num_observations = 25
+    sphere_radius = 5.
+    num_observations = 90
     bpy.context.scene.frame_end = num_observations
     cam_locations = util.sample_controlled_yaw(num_observations, sphere_radius) #get_archimedean_spiral(sphere_radius, num_observations)
     obj_location = np.zeros((1,3))
-    
+
     cv_poses = util.look_at(cam_locations, obj_location)
     blender_poses = [util.cv_cam2world_to_bcam2world(m) for m in cv_poses]
     for i, pose in enumerate(blender_poses):
@@ -485,13 +488,25 @@ def render_scenes(scene_num, args, scene_type):
         obj_params, obj, background_walls = setup_ecological_scene(scene_path=scene_path, args=args)
 
     # Subset 7 textures
-    include_texture_idxs = [0, 7, 13, 16, 21, 22, 25]
-    for i, texture_config in enumerate(texture_configs):
-        if i not in include_texture_idxs:
-            continue
+    num_textures_per_scene = args.textures_per_scene
+    pose_ids = np.random.choice(range(1, args.max_trajectories + 1), args.num_trajectories, replace=False)
+    preset_texture_ids = [0, 7, 13, 16, 22, 25]
+    for i in range(num_textures_per_scene):
+        if len(preset_texture_ids) and num_textures_per_scene > 1:
+            texture_id = i % len(preset_texture_ids)
+            texture_config = texture_configs[texture_id]
 
+        elif len(preset_texture_ids):
+            texture_id = np.random.choice(preset_texture_ids)
+            texture_config = texture_configs[texture_id]
+
+        else:
+            texture_id = np.random.randint(0, len(texture_configs))
+            texture_config = texture_configs[texture_id]
+
+        texture_id = f"texture_{texture_id:02d}"
         texture_params = json.load(open(texture_config, "r"))
-        texture_path = os.path.join(os.getcwd(), scene_path, f"texture_{i:02d}/")
+        texture_path = os.path.join(os.getcwd(), scene_path, texture_id)
         if not os.path.exists(texture_path):
             os.makedirs(texture_path)
 
@@ -510,22 +525,22 @@ def render_scenes(scene_num, args, scene_type):
             for k, background in enumerate(background_walls):
                 materials.add_material(background_texture, background, f"background_{k}")
                 background.scale = (background_scale, background_scale, background_scale)
-                
-        materials.add_material(foreground_texture, obj, "foreground")
-        obj.scale = (1.5, 1.5, 1.5)
 
-        pose_ids = np.random.choice(range(1, args.num_trajectories + 1), 2, replace=False)
+        materials.add_material(foreground_texture, obj, "foreground")
+
         for p, pose_id in enumerate(pose_ids):
-            pose_dir = sample_and_set_cam_poses(pose_id, num_observations=25, sphere_radius=5, all_poses_dir="poses")
+            pose_dir = sample_and_set_cam_poses(pose_id, num_observations=60, sphere_radius=5, all_poses_dir="poses")
             cam_path = os.path.join(texture_path, f"cam_{p:02d}/")
             os.makedirs(cam_path, exist_ok=True)
+            with open(os.path.join(cam_path, "cam_info.txt"), "w") as f:
+                f.write(f"{pose_dir}")
 
             bpy.context.scene.render.filepath = cam_path
             if not args.render_pass_only and not args.no_render:
                 bpy.ops.render.render(write_still=True, animation=True)
 
-            blend_path = os.path.join(cam_path, f"texture_{i}_cam_{p}.blend")
-            bpy.ops.wm.save_as_mainfile(filepath=blend_path)
+            #blend_path = os.path.join(cam_path, f"texture_{i}_cam_{p}.blend")
+            #bpy.ops.wm.save_as_mainfile(filepath=blend_path)
 
     # Render shaded + geometry passes
     if scene_type == "default":
@@ -553,7 +568,7 @@ def render_scenes(scene_num, args, scene_type):
     # save object mesh
     # bpy.context.view_layer.objects.active = obj
     blend_path = os.path.join(os.getcwd(), scene_path, "scene.blend")
-    bpy.ops.wm.save_as_mainfile(filepath=blend_path)
+    #bpy.ops.wm.save_as_mainfile(filepath=blend_path)
 
     if not args.no_render:
         bpy.ops.render.render(write_still=True, animation=True)
@@ -575,7 +590,7 @@ if __name__=="__main__":
     # os.system("nvidia-smi")
     start_scene = args.start_scene
     end_scene = start_scene + args.n_scenes
-    scene_type = "ecological"
+    scene_type = "default"
     print(f"Rendering scenes: {start_scene}-{end_scene}")
     for i in range(start_scene, end_scene):
         render_scenes(i, args, scene_type)
