@@ -29,7 +29,8 @@ parser.add_argument("--no_render", action="store_true")
 parser.add_argument("--num_trajectories", type=int, default=1, help="number of camera trajectories to render")
 parser.add_argument("--max_trajectories", type=int, default=10, help="number of camera trajectories to sample from")
 parser.add_argument("--textures_per_scene", type=int, default=1, help="How many textures to render for a given shape")
-
+parser.add_argument("--num_frames", type=int, default=90, help="How many frames to render")
+parser.add_argument("--device_type", type=str, default="CUDA", help="CUDA | METAL | CPU")
 args = parser.parse_args()
 
 """
@@ -46,7 +47,7 @@ Save:
 6. The rendered images
 """
 
-def setup_ecological_scene(scene_path="", args=None):
+def setup_ecological_scene_geometry(scene_path="", args=None):
     """
     In this kind of setting, the object is surrounded by walls and the camera moves freely around it.
     """
@@ -202,7 +203,7 @@ def sample_and_set_cam_poses(pose_id, num_observations, sphere_radius, all_poses
     return pose_id, pose_dir
 
 
-def setup_default_scene(scene_path="", args=None):
+def setup_default_scene_geometry(scene_path="", args=None):
     bpy.context.scene.use_nodes = False
 
     # Get the environment node tree of the current scene
@@ -265,8 +266,10 @@ def setup_default_scene(scene_path="", args=None):
     bpy.data.objects["Plane"].matrix_parent_inverse = camera.matrix_world.inverted()
 
     sphere_radius = 5.
-    num_observations = 90
+    num_observations = args.num_frames
     bpy.context.scene.frame_end = num_observations
+
+    # TODO: args should define the camera trajectory
     cam_locations = util.sample_controlled_yaw(num_observations, sphere_radius) #get_archimedean_spiral(sphere_radius, num_observations)
     obj_location = np.zeros((1,3))
 
@@ -318,7 +321,7 @@ def set_render_settings():
 
     preferences = bpy.context.preferences
     cycles_preferences = preferences.addons["cycles"].preferences
-    device_type = "CUDA"
+    device_type = args.device_type
     cycles_preferences.compute_device_type = device_type
 
     activated_gpus = []
@@ -482,18 +485,23 @@ def render_scenes(scene_num, args, scene_type):
             os.remove(render_log)
 
     texture_configs = sorted(glob("TextureSamples/configs/*.json"))
-    if scene_type == "default":
-        obj_params, obj, background = setup_default_scene(scene_path=scene_path, args=args)
-    elif scene_type == "ecological":
-        obj_params, obj, background_walls = setup_ecological_scene(scene_path=scene_path, args=args)
+    if args.num_textures_per_scene > len(texture_configs):
+        print("Not enough textures - create more and try again.")
+        sys.exit(1)
 
-    # Subset 7 textures
+    if scene_type == "default":
+        obj_params, obj, background = setup_default_scene_geometry(scene_path=scene_path, args=args)
+    elif scene_type == "ecological":
+        obj_params, obj, background_walls = setup_ecological_scene_geometry(scene_path=scene_path, args=args)
+
     num_textures_per_scene = args.textures_per_scene
     pose_ids = np.random.choice(range(1, args.max_trajectories + 1), args.num_trajectories, replace=False)
     preset_texture_ids = [0, 7, 13, 16, 22, 25]
+    if num_textures_per_scene > len(preset_texture_ids):
+        preset_texture_ids = np.random.choice(range(num_textures_per_scene), replace=False)
     for i in range(num_textures_per_scene):
-        if len(preset_texture_ids) and num_textures_per_scene > 1:
-            texture_id = i % len(preset_texture_ids)
+        if num_textures_per_scene > len(preset_texture_ids):
+            texture_id = 
             texture_config = texture_configs[texture_id]
 
         elif len(preset_texture_ids):

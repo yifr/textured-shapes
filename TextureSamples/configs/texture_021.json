@@ -3,7 +3,7 @@
         "Musgrave Texture": {
             "input_values": {
                 "W": 0.0,
-                "Scale": 16.5,
+                "Scale": 10,
                 "Detail": 2.0,
                 "Dimension": 2.0,
                 "Lacunarity": 2.0,
