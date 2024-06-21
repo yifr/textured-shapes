@@ -3,7 +3,7 @@
         "Noise Texture": {
             "input_values": {
                 "W": 0.0,
-                "Scale": 2.0,
+                "Scale": 1.2,
                 "Detail": 10.0,
                 "Roughness": 0.5,
                 "Distortion": 10.0

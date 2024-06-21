@@ -1,1 +1,38 @@
-{"foreground": {"Musgrave Texture": {"input_values": {"W": 0.0, "Scale": 7.5, "Detail": 10.0, "Dimension": 0.25, "Lacunarity": 3.0, "Offset": 0.0, "Gain": 1.0}, "texture_type": "Musgrave Texture", "output_name": "Fac", "input_node": "Mapping", "output_node": "ColorRamp", "musgrave_type": "MULTIFRACTAL"}}, "background": {"Musgrave Texture": {"input_values": {"W": 0.0, "Scale": 15.0, "Detail": 5.0, "Dimension": 0.25, "Lacunarity": 3.0, "Offset": 0.0, "Gain": 1.0}, "texture_type": "Musgrave Texture", "output_name": "Fac", "input_node": "Mapping", "output_node": "ColorRamp", "musgrave_type": "MULTIFRACTAL"}}}
+{
+    "foreground": {
+        "Musgrave Texture": {
+            "input_values": {
+                "W": 0.0,
+                "Scale": 3.5,
+                "Detail": 10.0,
+                "Dimension": 0.25,
+                "Lacunarity": 3.0,
+                "Offset": 0.0,
+                "Gain": 1.0
+            },
+            "texture_type": "Musgrave Texture",
+            "output_name": "Fac",
+            "input_node": "Mapping",
+            "output_node": "ColorRamp",
+            "musgrave_type": "MULTIFRACTAL"
+        }
+    },
+    "background": {
+        "Musgrave Texture": {
+            "input_values": {
+                "W": 0.0,
+                "Scale": 15.0,
+                "Detail": 5.0,
+                "Dimension": 0.25,
+                "Lacunarity": 3.0,
+                "Offset": 0.0,
+                "Gain": 1.0
+            },
+            "texture_type": "Musgrave Texture",
+            "output_name": "Fac",
+            "input_node": "Mapping",
+            "output_node": "ColorRamp",
+            "musgrave_type": "MULTIFRACTAL"
+        }
+    }
+}

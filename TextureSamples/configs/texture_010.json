@@ -1,1 +1,36 @@
-{"foreground": {"Voronoi Texture": {"input_values": {"W": 0.0, "Scale": 10.0, "Smoothness": 1.0, "Exponent": 0.5, "Randomness": 1.0}, "texture_type": "Voronoi Texture", "output_name": "Distance", "input_node": "Mapping", "output_node": "ColorRamp", "feature": "F1", "distance": "EUCLIDEAN"}}, "background": {"Voronoi Texture": {"input_values": {"W": 0.0, "Scale": 25.0, "Smoothness": 1.0, "Exponent": 0.5, "Randomness": 1.0}, "texture_type": "Voronoi Texture", "output_name": "Distance", "input_node": "Mapping", "output_node": "ColorRamp", "feature": "F1", "distance": "EUCLIDEAN"}}}
+{
+    "foreground": {
+        "Voronoi Texture": {
+            "input_values": {
+                "W": 0.0,
+                "Scale": 1.0,
+                "Smoothness": 1.0,
+                "Exponent": 0.5,
+                "Randomness": 1.0
+            },
+            "texture_type": "Voronoi Texture",
+            "output_name": "Distance",
+            "input_node": "Mapping",
+            "output_node": "ColorRamp",
+            "feature": "F1",
+            "distance": "EUCLIDEAN"
+        }
+    },
+    "background": {
+        "Voronoi Texture": {
+            "input_values": {
+                "W": 0.0,
+                "Scale": 6.0,
+                "Smoothness": 1.0,
+                "Exponent": 0.5,
+                "Randomness": 1.0
+            },
+            "texture_type": "Voronoi Texture",
+            "output_name": "Distance",
+            "input_node": "Mapping",
+            "output_node": "ColorRamp",
+            "feature": "F1",
+            "distance": "EUCLIDEAN"
+        }
+    }
+}
