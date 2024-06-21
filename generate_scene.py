@@ -31,6 +31,7 @@ parser.add_argument("--max_trajectories", type=int, default=10, help="number of 
 parser.add_argument("--textures_per_scene", type=int, default=1, help="How many textures to render for a given shape")
 parser.add_argument("--num_frames", type=int, default=90, help="How many frames to render")
 parser.add_argument("--device_type", type=str, default="CUDA", help="CUDA | METAL | CPU")
+parser.add_argument("--save_blendfile", action="store_true", help="Save the blend file for each scene")
 args = parser.parse_args()
 
 """
@@ -485,7 +486,7 @@ def render_scenes(scene_num, args, scene_type):
             os.remove(render_log)
 
     texture_configs = sorted(glob("TextureSamples/configs/*.json"))
-    if args.num_textures_per_scene > len(texture_configs):
+    if args.textures_per_scene > len(texture_configs):
         print("Not enough textures - create more and try again.")
         sys.exit(1)
 
@@ -499,22 +500,13 @@ def render_scenes(scene_num, args, scene_type):
     preset_texture_ids = [0, 7, 13, 16, 22, 25]
     if num_textures_per_scene > len(preset_texture_ids):
         preset_texture_ids = np.random.choice(range(num_textures_per_scene), replace=False)
+
     for i in range(num_textures_per_scene):
-        if num_textures_per_scene > len(preset_texture_ids):
-            texture_id = 
-            texture_config = texture_configs[texture_id]
-
-        elif len(preset_texture_ids):
-            texture_id = np.random.choice(preset_texture_ids)
-            texture_config = texture_configs[texture_id]
-
-        else:
-            texture_id = np.random.randint(0, len(texture_configs))
-            texture_config = texture_configs[texture_id]
-
-        texture_id = f"texture_{texture_id:02d}"
+        texture_id = preset_texture_ids[i]
+        texture_config = texture_configs[texture_id]
+        texture_name = f"texture_{texture_id:02d}"
         texture_params = json.load(open(texture_config, "r"))
-        texture_path = os.path.join(os.getcwd(), scene_path, texture_id)
+        texture_path = os.path.join(os.getcwd(), scene_path, texture_name)
         if not os.path.exists(texture_path):
             os.makedirs(texture_path)
 
@@ -536,19 +528,21 @@ def render_scenes(scene_num, args, scene_type):
 
         materials.add_material(foreground_texture, obj, "foreground")
 
+        
         for p, pose_id in enumerate(pose_ids):
-            pose_dir = sample_and_set_cam_poses(pose_id, num_observations=60, sphere_radius=5, all_poses_dir="poses")
+            #pose_dir = sample_and_set_cam_poses(pose_id, num_observations=args.num_frames, sphere_radius=5, all_poses_dir="poses")
             cam_path = os.path.join(texture_path, f"cam_{p:02d}/")
             os.makedirs(cam_path, exist_ok=True)
-            with open(os.path.join(cam_path, "cam_info.txt"), "w") as f:
-                f.write(f"{pose_dir}")
+            # with open(os.path.join(cam_path, "cam_info.txt"), "w") as f:
+            #     f.write(f"{pose_dir}")
 
             bpy.context.scene.render.filepath = cam_path
             if not args.render_pass_only and not args.no_render:
                 bpy.ops.render.render(write_still=True, animation=True)
-
-            #blend_path = os.path.join(cam_path, f"texture_{i}_cam_{p}.blend")
-            #bpy.ops.wm.save_as_mainfile(filepath=blend_path)
+    
+            if args.save_blendfile:
+                blend_path = os.path.join(cam_path, f"texture_{i}_cam_{p}.blend")
+                bpy.ops.wm.save_as_mainfile(filepath=blend_path)
 
     # Render shaded + geometry passes
     if scene_type == "default":
