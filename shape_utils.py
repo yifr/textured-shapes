@@ -106,6 +106,8 @@ def load_shape(params):
         is_bevel=int(is_bevel),
     )
     bpy.ops.object.origin_set(type='GEOMETRY_ORIGIN', center='MEDIAN')
+    bpy.ops.object.join()
+    bpy.context.object.scale = (0.975, 0.975, 0.975)
     # scale 0.3
 
 def sample_shapenet_obj(obj_file=None):
