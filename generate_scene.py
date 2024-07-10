@@ -470,8 +470,8 @@ def generate_passes(scene_dir):
 def render_scenes(scene_num, args, scene_type):
     scene_path = os.path.join(args.data_dir, f"scene_{scene_num:05d}")
     render_log = os.path.join(scene_path, "render_logs.txt")
-
-    if args.no_overwrite and os.path.exists(render_log):
+    print(os.path.exists(render_log))
+    if args.no_overwrite and os.path.exists(scene_path):
         print(f"Render log found for scene: {scene_path}")
         print("Skipping render...")
         return
@@ -497,9 +497,9 @@ def render_scenes(scene_num, args, scene_type):
 
     num_textures_per_scene = args.textures_per_scene
     pose_ids = np.random.choice(range(1, args.max_trajectories + 1), args.num_trajectories, replace=False)
-    preset_texture_ids = [0, 7, 13, 16, 22, 25]
+    preset_texture_ids = [0, 7, 13, 16, 21, 22, 25]
     if num_textures_per_scene > len(preset_texture_ids):
-        preset_texture_ids = np.random.choice(range(num_textures_per_scene), replace=False)
+        preset_texture_ids = np.random.choice(range(num_textures_per_scene), num_textures_per_scene, replace=False)
 
     for i in range(num_textures_per_scene):
         texture_id = preset_texture_ids[i]
@@ -587,7 +587,7 @@ def render_scenes(scene_num, args, scene_type):
 
 if __name__=="__main__":
     if not os.path.exists(args.data_dir):
-        os.makedirs(args.data_dir)
+        os.makedirs(args.data_dir, exist_ok=True)
 
     # os.system("nvidia-smi")
     start_scene = args.start_scene
