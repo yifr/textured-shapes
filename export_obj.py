@@ -18,6 +18,6 @@ def main():
     scenes = glob.glob("/om2/user/yyf/textured-shapes/hi-res-scenes/*")
     for scene_dir in scenes:
         print(scene_dir)
-        export_obj(scene_dir, "/Users/yonifriedman/Projects/textured-shapes/scenes/scene_00000/")
+        export_obj(scene_dir)
 
 main()
