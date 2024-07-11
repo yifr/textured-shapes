@@ -71,6 +71,7 @@ def load_object(scene_path, args):
         obj = bpy.context.object
 
     obj.name = "Object"
+	print(obj, obj.name, bpy.context.object)
     return object_params, obj
 
 
@@ -503,7 +504,9 @@ def render_scenes(scene_num, args, scene_type):
             for k, background in enumerate(background_walls):
                 materials.add_material(background_texture, background, f"background_{k}")
                 background.scale = (background_scale, background_scale, background_scale)
-
+		
+		foreground_obj = bpy.data.objects["Object"] 
+		print(foreground_obj)
         materials.add_material(foreground_texture, obj, "foreground")
 
         
