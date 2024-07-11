@@ -41,7 +41,7 @@ def load_object(scene_path, args):
     # Add foreground object
     if args.alternate_obj_directory != "":
         scene_id = scene_path.split("/")[-1]
-        obj_path = os.path.join(args.obj_directory, scene_id, "shape.obj")
+        obj_path = os.path.join(args.alternate_obj_directory, scene_id, "shape.obj")
         bpy.ops.import_scene.obj(filepath=obj_path)
     else:  
         obj_params_file = os.path.join(scene_path, 'obj_params.json')
