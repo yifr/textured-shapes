@@ -12,7 +12,7 @@ def export_obj(scene_dir):
     bpy.ops.object.select_all(action='DESELECT')
     bpy.data.objects[obj_name].select_set(True)
 
-    bpy.ops.export_scene.obj(filepath=os.path.join(scene_dir, 'scene.obj'), use_selection=True)
+    bpy.ops.export_scene.obj(filepath=os.path.join(scene_dir, 'shape.obj'), use_selection=True)
 
 def main():
     scenes = glob.glob("/om2/user/yyf/textured-shapes/hi-res-scenes/*")
