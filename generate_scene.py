@@ -43,7 +43,8 @@ def load_object(scene_path, args):
         scene_id = scene_path.split("/")[-1]
         obj_path = os.path.join(args.alternate_obj_directory, scene_id, "shape.obj")
         bpy.ops.import_scene.obj(filepath=obj_path)
-        obj = bpy.context.active_object	
+        obj = bpy.context.active_object
+        obj.name = "Object"
         obj_params_file = os.path.join(args.alternate_obj_directory, scene_id, 'obj_params.json')
         object_params = json.load(open(obj_params_file, 'rb'))
     else:  
@@ -68,7 +69,7 @@ def load_object(scene_path, args):
     if args.shape_type == "shapenet":
         obj = bpy.data.objects["model_normalized"]
     else:
-        obj = bpy.context.active_object
+        obj = bpy.data.objects[-1]
 
     obj.name = "Object"
     return object_params, obj
