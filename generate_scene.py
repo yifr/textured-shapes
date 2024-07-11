@@ -227,7 +227,7 @@ def setup_default_scene_geometry(scene_path="", args=None):
 
     return object_params, obj, background
 
-def setup_camera(scene_path, args):
+def setup_camera(scene_path, args, background):
     bpy.ops.object.camera_add(enter_editmode=False, align='VIEW', location=(0, 0, 8), rotation=(0, 0, 0))
     bpy.context.scene.camera = bpy.context.object
     camera = bpy.context.object
@@ -242,8 +242,8 @@ def setup_camera(scene_path, args):
     else:
         util.set_camera_focal_length_in_world_units(camera.data, 525/512*args.resolution) # Set focal length to a common value (kinect)
 
-    bpy.data.objects["Plane"].parent = camera
-    bpy.data.objects["Plane"].matrix_parent_inverse = camera.matrix_world.inverted()
+    background.parent = camera
+    background.matrix_parent_inverse = camera.matrix_world.inverted()
 
     sphere_radius = 5.
     num_observations = args.num_frames
@@ -468,10 +468,10 @@ def render_scenes(scene_num, args, scene_type):
 
     if scene_type == "default":
         obj_params, obj, background = setup_default_scene_geometry(scene_path=scene_path, args=args)
-        setup_camera(scene_path, args)
+        setup_camera(scene_path, args, background)
     elif scene_type == "ecological":
         obj_params, obj, background_walls = setup_ecological_scene_geometry(scene_path=scene_path, args=args)
-        setup_camera(scene_path, args)
+        setup_camera(scene_path, args, background_walls[0])
 
     num_textures_per_scene = args.textures_per_scene
     pose_ids = np.random.choice(range(1, args.max_trajectories + 1), args.num_trajectories, replace=False)
