@@ -43,6 +43,9 @@ def load_object(scene_path, args):
         scene_id = scene_path.split("/")[-1]
         obj_path = os.path.join(args.alternate_obj_directory, scene_id, "shape.obj")
         bpy.ops.import_scene.obj(filepath=obj_path)
+	
+        obj_params_file = os.path.join(args.alternate_obj_directory, scene_id, 'obj_params.json')
+        object_params = json.load(open(obj_params_file, 'rb'))
     else:  
         obj_params_file = os.path.join(scene_path, 'obj_params.json')
         if os.path.exists(obj_params_file) and args.check_existing_obj:
