@@ -89,8 +89,12 @@ def add_material(texture_config, obj=None, material_name="Material"):
             texture.inputs[input_val].default_value = config["input_values"][input_val]
 
     # Add random noise to texture generator
-    mapping_node.inputs["Location"].default_value = np.random.randint(-1000, 1000, 3)
-    mapping_node.inputs["Rotation"].default_value = np.random.randint(0, 2 * np.pi, 3)
+    location = np.random.randint(-1000, 1000, 3)
+    rotation = np.random.randint(0, 2 * np.pi, 3)
+    mapping_node.inputs["Location"].default_value = location
+    mapping_node.inputs["Rotation"].default_value = rotation
+    texture_config["Location"] = location
+    texture_config["Rotation"] = rotation    
 
     nodes["Material Output"].location = (800, 0)
     emission_node.location = (600, 0)
@@ -141,5 +145,5 @@ def add_material(texture_config, obj=None, material_name="Material"):
         obj.data.materials[0] = mat
     else:
         obj.data.materials.append(mat)
-
-    return
+	
+    return texture_config

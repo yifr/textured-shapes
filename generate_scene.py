@@ -489,16 +489,14 @@ def render_scenes(scene_num, args, scene_type):
         if not os.path.exists(texture_path):
             os.makedirs(texture_path)
 
-        with open(os.path.join(texture_path, "texture_params.json"), "w") as f:
-            json.dump(texture_params, f)
-
         foreground_texture = texture_params["foreground"]
         background_texture = texture_params["background"]
         background_scale = 10
 
         if scene_type == "default":
-            materials.add_material(background_texture, background, "background")
+            background_material = materials.add_material(background_texture, background, "background")
             background.scale = (background_scale, background_scale, background_scale)
+            texture_params["background"] = background_material
 
         elif scene_type == "ecological":
             for k, background in enumerate(background_walls):
@@ -506,8 +504,11 @@ def render_scenes(scene_num, args, scene_type):
                 background.scale = (background_scale, background_scale, background_scale)
 		
         foreground_obj = bpy.data.objects["Object"] 
-        materials.add_material(foreground_texture, obj, "foreground")
-
+        foreground_material = materials.add_material(foreground_texture, obj, "foreground")
+        texture_params["foreground"] = foreground_material
+        
+        with open(os.path.join(texture_path, "texture_params.json"), "w") as f:
+            json.dump(texture_params, f)
         
         for p, pose_id in enumerate(pose_ids):
             #pose_dir = sample_and_set_cam_poses(pose_id, num_observations=args.num_frames, sphere_radius=5, all_poses_dir="poses")
