@@ -33,85 +33,34 @@ parser.add_argument("--num_frames", type=int, default=90, help="How many frames 
 parser.add_argument("--device_type", type=str, default="CUDA", help="CUDA | METAL | CPU")
 parser.add_argument("--focal_length", type=str, default="large", help="large (132.2 mm) | medium (.6 * large)| small (.2 * large)")
 parser.add_argument("--save_blendfile", action="store_true", help="Save the blend file for each scene")
+parser.add_argument("--alternate_obj_directory", type=str, default="", help="Directory where corresponding obj files are stored")
 args = parser.parse_args()
 
-"""
-Render a scene with a textured foreground object and a textured background plane
-Rotate the camera in a jacobean spiral, and parent the background plane to the camera
-so it looks like the object is moving.
 
-Save:
-1. The texture parameters
-2. The object parameters (shape parameters and rotation?)
-3. The camera extrinsics for each frame and camera intrinsics
-4. Depth maps for each frame
-5. Surface normals for each frame
-6. The rendered images
-"""
-
-def setup_ecological_scene_geometry(scene_path="", args=None):
-    """
-    In this kind of setting, the object is surrounded by walls and the camera moves freely around it.
-    """
-
-    bpy.context.scene.use_nodes = False
-
-    # Get the environment node tree of the current scene
-    world_node_tree = bpy.context.scene.world.node_tree
-    tree_nodes = world_node_tree.nodes
-
-    # Clear all nodes
-    tree_nodes.clear()
-
-    # Add Background node
-    node_background = tree_nodes.new(type='ShaderNodeBackground')
-
-    # Add Output node
-    node_output = tree_nodes.new(type='ShaderNodeOutputWorld')
-    node_output.location = 200,0
-
-    # Link all nodes
-    links = world_node_tree.links
-    link = links.new(node_background.outputs["Background"], node_output.inputs["Surface"])
-
-    # Add background
-    def add_and_name_wall(location, rotation, name, size=10):
-        bpy.ops.mesh.primitive_plane_add(size=size, enter_editmode=False, align='WORLD', location=location, rotation=rotation)
-        bpy.context.selected_objects[0].name = name
-
-    wall_scale = 10
-    init_size = 1
-    offset = wall_scale / 2
-    add_and_name_wall((0, 0, -offset), (0, 0, 0), "left_wall_z", size=init_size)
-    add_and_name_wall((0, 0, offset), (0, 0, 0), "right_wall_z", size=init_size)
-
-    add_and_name_wall((-offset, 0, 0), (0, np.pi/2, 0), "left_wall_x", size=init_size)
-    add_and_name_wall((offset, 0, 0), (0, np.pi/2, 0), "right_wall_x", size=init_size)
-
-    add_and_name_wall((0, -offset, 0), (np.pi/2, 0, 0), "left_wall_y", size=init_size)
-    add_and_name_wall((0, offset, 0), (np.pi/2, 0, 0), "right_wall_y", size=init_size)
-
-    wall_names =  [x[0] + x[1] for x in itertools.product(["left_wall_", "right_wall_"], ["x", "y", "z"])]
-    walls = [bpy.data.objects[wall_name]for wall_name in wall_names]
-
+def load_object(scene_path, args):
     # Add foreground object
-    obj_params_file = os.path.join(scene_path, 'obj_params.json')
-    if os.path.exists(obj_params_file) and args.check_existing_obj:
-        if args.shape_type == "shapenet":
-            obj_params = obj_params_file['params']
-            shape_utils.sample_shapenet_obj(obj_params)
+    if args.alternate_obj_directory != "":
+        scene_id = scene_path.split("/")[-1]
+        obj_path = os.path.join(args.obj_directory, scene_id, "shape.obj")
+        bpy.ops.import_scene.obj(filepath=obj_path)
+    else:  
+        obj_params_file = os.path.join(scene_path, 'obj_params.json')
+        if os.path.exists(obj_params_file) and args.check_existing_obj:
+            if args.shape_type == "shapenet":
+                obj_params = obj_params_file['params']
+                shape_utils.sample_shapenet_obj(obj_params)
+            else:
+                object_params = json.load(open(obj_params_file, 'rb'))
+                shape_utils.load_shape(object_params)
         else:
-            object_params = json.load(open(obj_params_file, 'rb'))
-            shape_utils.load_shape(object_params)
-    else:
-        if args.shape_type == "shapenet":
-            object_file = shape_utils.sample_shapenet_obj()
-            object_params = {"params": object_file}
-        else:
-            object_params = shape_utils.create_shape()
+            if args.shape_type == "shapenet":
+                object_file = shape_utils.sample_shapenet_obj()
+                object_params = {"params": object_file}
+            else:
+                object_params = shape_utils.create_shape()
 
-        with open(obj_params_file, "w") as f:
-            json.dump(object_params, f)
+            with open(obj_params_file, "w") as f:
+                json.dump(object_params, f)
 
     if args.shape_type == "shapenet":
         obj = bpy.data.objects["model_normalized"]
@@ -119,8 +68,8 @@ def setup_ecological_scene_geometry(scene_path="", args=None):
         obj = bpy.context.object
 
     obj.name = "Object"
+    return object_params, obj
 
-    return object_params, obj, walls
 
 def load_pose(filename):
     lines = open(filename, "r").read().splitlines()
@@ -196,6 +145,56 @@ def sample_and_set_cam_poses(pose_id, num_observations, sphere_radius, all_poses
     return pose_id, pose_dir
 
 
+def setup_ecological_scene_geometry(scene_path="", args=None):
+    """
+    In this kind of setting, the object is surrounded by walls and the camera moves freely around it.
+    """
+
+    bpy.context.scene.use_nodes = False
+
+    # Get the environment node tree of the current scene
+    world_node_tree = bpy.context.scene.world.node_tree
+    tree_nodes = world_node_tree.nodes
+
+    # Clear all nodes
+    tree_nodes.clear()
+
+    # Add Background node
+    node_background = tree_nodes.new(type='ShaderNodeBackground')
+
+    # Add Output node
+    node_output = tree_nodes.new(type='ShaderNodeOutputWorld')
+    node_output.location = 200,0
+
+    # Link all nodes
+    links = world_node_tree.links
+    link = links.new(node_background.outputs["Background"], node_output.inputs["Surface"])
+
+    # Add background
+    def add_and_name_wall(location, rotation, name, size=10):
+        bpy.ops.mesh.primitive_plane_add(size=size, enter_editmode=False, align='WORLD', location=location, rotation=rotation)
+        bpy.context.selected_objects[0].name = name
+
+    wall_scale = 10
+    init_size = 1
+    offset = wall_scale / 2
+    add_and_name_wall((0, 0, -offset), (0, 0, 0), "left_wall_z", size=init_size)
+    add_and_name_wall((0, 0, offset), (0, 0, 0), "right_wall_z", size=init_size)
+
+    add_and_name_wall((-offset, 0, 0), (0, np.pi/2, 0), "left_wall_x", size=init_size)
+    add_and_name_wall((offset, 0, 0), (0, np.pi/2, 0), "right_wall_x", size=init_size)
+
+    add_and_name_wall((0, -offset, 0), (np.pi/2, 0, 0), "left_wall_y", size=init_size)
+    add_and_name_wall((0, offset, 0), (np.pi/2, 0, 0), "right_wall_y", size=init_size)
+
+    wall_names =  [x[0] + x[1] for x in itertools.product(["left_wall_", "right_wall_"], ["x", "y", "z"])]
+    walls = [bpy.data.objects[wall_name]for wall_name in wall_names]
+
+    # Add foreground object
+    object_params, obj = load_object(scene_path, args)
+    return object_params, obj, walls
+
+
 def setup_default_scene_geometry(scene_path="", args=None):
     bpy.context.scene.use_nodes = False
 
@@ -221,31 +220,7 @@ def setup_default_scene_geometry(scene_path="", args=None):
     bpy.ops.mesh.primitive_plane_add(size=10, enter_editmode=False, align='WORLD', location=(0, 0, -4), scale=(1, 1, 1))
     background = bpy.context.object
 
-    # Add foreground object
-    obj_params_file = os.path.join(scene_path, 'obj_params.json')
-    if os.path.exists(obj_params_file) and args.check_existing_obj:
-        if args.shape_type == "shapenet":
-            obj_params = obj_params_file['params']
-            shape_utils.sample_shapenet_obj(obj_params)
-        else:
-            object_params = json.load(open(obj_params_file, 'rb'))
-            shape_utils.load_shape(object_params)
-    else:
-        if args.shape_type == "shapenet":
-            object_file = shape_utils.sample_shapenet_obj()
-            object_params = {"params": object_file}
-        else:
-            object_params = shape_utils.create_shape()
-
-        with open(obj_params_file, "w") as f:
-            json.dump(object_params, f)
-
-    if args.shape_type == "shapenet":
-        obj = bpy.data.objects["model_normalized"]
-    else:
-        obj = bpy.context.object
-
-    obj.name = "Object"
+    object_params, obj = load_object(scene_path, args)
 
     return object_params, obj, background
 
@@ -333,7 +308,7 @@ def set_render_settings():
 
     cycles_preferences.compute_device_type = device_type
 
-def generate_passes(scene_dir):
+def setup_midlevel_render_exports(scene_dir):
     # Get the environment node tree of the current scene
     world_node_tree = bpy.context.scene.world.node_tree
     tree_nodes = world_node_tree.nodes
@@ -559,7 +534,7 @@ def render_scenes(scene_num, args, scene_type):
     obj.data.materials.pop(index=0)
 
     mask_filepath = os.path.join(scene_path, "render_passes/")
-    generate_passes(mask_filepath)
+    setup_midlevel_render_exports(mask_filepath)
     bpy.context.scene.render.filepath = os.path.join(scene_path, f"shaded/")
 
     # Up the quality for ground truth rendering
