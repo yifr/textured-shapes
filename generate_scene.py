@@ -494,17 +494,17 @@ def render_scenes(scene_num, args, scene_type):
         background_scale = 10
 
         if scene_type == "default":
-            background_material = materials.add_material(background_texture, background, "background")
+            background_material = materials.add_material(background_texture, background, "background", seed=scene_num)
             background.scale = (background_scale, background_scale, background_scale)
             texture_params["background"] = background_material
 
         elif scene_type == "ecological":
             for k, background in enumerate(background_walls):
-                materials.add_material(background_texture, background, f"background_{k}")
+                materials.add_material(background_texture, background, f"background_{k}", seed=scene_num)
                 background.scale = (background_scale, background_scale, background_scale)
 		
         foreground_obj = bpy.data.objects["Object"] 
-        foreground_material = materials.add_material(foreground_texture, obj, "foreground")
+        foreground_material = materials.add_material(foreground_texture, obj, "foreground", seed=scene_num)
         texture_params["foreground"] = foreground_material
         
         with open(os.path.join(texture_path, "texture_params.json"), "w") as f:

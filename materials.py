@@ -40,7 +40,7 @@ def Shader(name):
     return "ShaderNodeTex" + name
 
 
-def add_material(texture_config, obj=None, material_name="Material"):
+def add_material(texture_config, obj=None, material_name="Material", seed=-1):
     """
     Adds texture config to an object
     """
@@ -89,12 +89,18 @@ def add_material(texture_config, obj=None, material_name="Material"):
             texture.inputs[input_val].default_value = config["input_values"][input_val]
 
     # Add random noise to texture generator
-    location = np.random.randint(-1000, 1000, 3)
-    rotation = np.random.randint(0, 2 * np.pi, 3)
+    if seed != -1:
+        location = [seed * 4 for _ in range(3)]
+        rotation = [seed * 4 for _ in range(3)]
+    else:
+        location = np.random.randint(-1000, 1000, 3)
+        rotation = np.random.randint(0, 2 * np.pi, 3)
+
     mapping_node.inputs["Location"].default_value = location
     mapping_node.inputs["Rotation"].default_value = rotation
-    texture_config["Location"] = location
-    texture_config["Rotation"] = rotation    
+
+    texture_config["Location"] = list(location)
+    texture_config["Rotation"] = list(rotation)
 
     nodes["Material Output"].location = (800, 0)
     emission_node.location = (600, 0)
