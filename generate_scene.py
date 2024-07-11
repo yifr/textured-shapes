@@ -245,7 +245,7 @@ def setup_camera(scene_path, args, background):
     background.parent = camera
     background.matrix_parent_inverse = camera.matrix_world.inverted()
 
-    sphere_radius = 5.
+    sphere_radius = 1.5
     num_observations = args.num_frames
     bpy.context.scene.frame_end = num_observations
 
