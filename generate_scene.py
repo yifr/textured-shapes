@@ -43,7 +43,7 @@ def load_object(scene_path, args):
         scene_id = scene_path.split("/")[-1]
         obj_path = os.path.join(args.alternate_obj_directory, scene_id, "shape.obj")
         bpy.ops.import_scene.obj(filepath=obj_path)
-	
+        obj = bpy.context.active_object	
         obj_params_file = os.path.join(args.alternate_obj_directory, scene_id, 'obj_params.json')
         object_params = json.load(open(obj_params_file, 'rb'))
     else:  
@@ -68,10 +68,9 @@ def load_object(scene_path, args):
     if args.shape_type == "shapenet":
         obj = bpy.data.objects["model_normalized"]
     else:
-        obj = bpy.context.object
+        obj = bpy.context.active_object
 
     obj.name = "Object"
-	print(obj, obj.name, bpy.context.object)
     return object_params, obj
 
 
@@ -505,8 +504,7 @@ def render_scenes(scene_num, args, scene_type):
                 materials.add_material(background_texture, background, f"background_{k}")
                 background.scale = (background_scale, background_scale, background_scale)
 		
-		foreground_obj = bpy.data.objects["Object"] 
-		print(foreground_obj)
+        foreground_obj = bpy.data.objects["Object"] 
         materials.add_material(foreground_texture, obj, "foreground")
 
         
@@ -574,6 +572,6 @@ if __name__=="__main__":
     start_scene = args.start_scene
     end_scene = start_scene + args.n_scenes
     scene_type = "default"
-    print(f"Rendering scenes: {start_scene}-{end_scene}")
+    print(f"Rendering scenes: {start_scene}-{end_scene}", flush=True)
     for i in range(start_scene, end_scene):
         render_scenes(i, args, scene_type)

@@ -94,7 +94,7 @@ def add_material(texture_config, obj=None, material_name="Material"):
 
     nodes["Material Output"].location = (800, 0)
     emission_node.location = (600, 0)
-    color_ramp.location = (400, 0)
+    color_ramp.location = (200, 0)
 
     mapping_node.location = (-200, 0)
     coordinate_node.location = (-400, 0)
