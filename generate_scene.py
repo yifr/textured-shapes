@@ -31,6 +31,7 @@ parser.add_argument("--max_trajectories", type=int, default=10, help="number of 
 parser.add_argument("--textures_per_scene", type=int, default=1, help="How many textures to render for a given shape")
 parser.add_argument("--num_frames", type=int, default=90, help="How many frames to render")
 parser.add_argument("--device_type", type=str, default="CUDA", help="CUDA | METAL | CPU")
+parser.add_argument("--focal_length", type=str, default="large", help="large (132.2 mm) | medium (.6 * large)| small (.2 * large)")
 parser.add_argument("--save_blendfile", action="store_true", help="Save the blend file for each scene")
 args = parser.parse_args()
 
@@ -117,16 +118,7 @@ def setup_ecological_scene_geometry(scene_path="", args=None):
     else:
         obj = bpy.context.object
 
-    obj.rotation_euler = np.random.random(3) * 2 * np.pi
     obj.name = "Object"
-
-    bpy.ops.object.camera_add(enter_editmode=False, align='VIEW', location=(0, 0, 8), rotation=(0, 0, 0))
-    bpy.context.scene.camera = bpy.context.object
-    camera = bpy.context.object
-    camera.data.sensor_width = 128.0
-    camera.data.sensor_height = 128.0    # Square sensor
-    util.set_camera_focal_length_in_world_units(camera.data, 525/512*args.resolution) # Set focal length to a common value (kinect)
-    #camera.data.lens = 125
 
     return object_params, obj, walls
 
@@ -253,15 +245,24 @@ def setup_default_scene_geometry(scene_path="", args=None):
     else:
         obj = bpy.context.object
 
-    obj.rotation_euler = np.random.random(3) * 2 * np.pi
     obj.name = "Object"
 
+    return object_params, obj, background
+
+def setup_camera(scene_path, args):
     bpy.ops.object.camera_add(enter_editmode=False, align='VIEW', location=(0, 0, 8), rotation=(0, 0, 0))
     bpy.context.scene.camera = bpy.context.object
     camera = bpy.context.object
     camera.data.sensor_width = 128.0
     camera.data.sensor_height = 128.0    # Square sensor
-    util.set_camera_focal_length_in_world_units(camera.data, 525/512*args.resolution) # Set focal length to a common value (kinect)
+    if args.focal_length == "large":
+        camera.data.lens = 132.2
+    elif args.focal_length == "small":
+        camera.data.lens = 132.2 * .222
+    elif args.focal_length == "medium":
+        camera.data.lens = 132.2 * .666
+    else:
+        util.set_camera_focal_length_in_world_units(camera.data, 525/512*args.resolution) # Set focal length to a common value (kinect)
 
     bpy.data.objects["Plane"].parent = camera
     bpy.data.objects["Plane"].matrix_parent_inverse = camera.matrix_world.inverted()
@@ -294,9 +295,6 @@ def setup_default_scene_geometry(scene_path="", args=None):
                 for k in range(4):
                     matrix_flat.append(cam2world[j][k])
             pose_file.write(' '.join(map(str, matrix_flat)) + '\n')
-
-
-    return object_params, obj, background
 
 def delete_all():
     bpy.ops.object.select_all(action="DESELECT")
@@ -492,8 +490,10 @@ def render_scenes(scene_num, args, scene_type):
 
     if scene_type == "default":
         obj_params, obj, background = setup_default_scene_geometry(scene_path=scene_path, args=args)
+        setup_camera(scene_path, args)
     elif scene_type == "ecological":
         obj_params, obj, background_walls = setup_ecological_scene_geometry(scene_path=scene_path, args=args)
+        setup_camera(scene_path, args)
 
     num_textures_per_scene = args.textures_per_scene
     pose_ids = np.random.choice(range(1, args.max_trajectories + 1), args.num_trajectories, replace=False)
