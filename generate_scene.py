@@ -42,12 +42,17 @@ def load_object(scene_path, args):
     if args.alternate_obj_directory != "":
         scene_id = scene_path.split("/")[-1]
         obj_path = os.path.join(args.alternate_obj_directory, scene_id, "shape.obj")
-        bpy.ops.import_scene.obj(filepath=obj_path)
+        #bpy.ops.import_scene.obj(filepath=obj_path)
+
+        obj_params_file = os.path.join(args.alternate_obj_directory, scene_id, 'obj_params_updated.json')
+        object_params = json.load(open(obj_params_file, 'rb'))
+        shape_utils.load_shape(object_params)
         obj = bpy.context.active_object
         obj.name = "Object"
-        obj_params_file = os.path.join(args.alternate_obj_directory, scene_id, 'obj_params.json')
-        object_params = json.load(open(obj_params_file, 'rb'))
-    else:  
+        obj = bpy.data.objects[-1]
+        obj.name = "Object"
+
+    else:
         obj_params_file = os.path.join(scene_path, 'obj_params.json')
         if os.path.exists(obj_params_file) and args.check_existing_obj:
             if args.shape_type == "shapenet":
@@ -497,19 +502,20 @@ def render_scenes(scene_num, args, scene_type):
             background_material = materials.add_material(background_texture, background, "background", seed=scene_num)
             background.scale = (background_scale, background_scale, background_scale)
             texture_params["background"] = background_material
+            background.scale = (5, 5, 5) # TODO: Delete this
 
         elif scene_type == "ecological":
             for k, background in enumerate(background_walls):
                 materials.add_material(background_texture, background, f"background_{k}", seed=scene_num)
                 background.scale = (background_scale, background_scale, background_scale)
-		
-        foreground_obj = bpy.data.objects["Object"] 
+
+        foreground_obj = bpy.data.objects["Object"]
         foreground_material = materials.add_material(foreground_texture, obj, "foreground", seed=scene_num)
         texture_params["foreground"] = foreground_material
-        
+
         with open(os.path.join(texture_path, "texture_params.json"), "w") as f:
             json.dump(texture_params, f)
-        
+
         for p, pose_id in enumerate(pose_ids):
             #pose_dir = sample_and_set_cam_poses(pose_id, num_observations=args.num_frames, sphere_radius=5, all_poses_dir="poses")
             cam_path = os.path.join(texture_path, f"cam_{p:02d}/")
@@ -520,7 +526,7 @@ def render_scenes(scene_num, args, scene_type):
             bpy.context.scene.render.filepath = cam_path
             if not args.render_pass_only and not args.no_render:
                 bpy.ops.render.render(write_still=True, animation=True)
-    
+
             if args.save_blendfile:
                 blend_path = os.path.join(cam_path, f"texture_{i}_cam_{p}.blend")
                 bpy.ops.wm.save_as_mainfile(filepath=blend_path)

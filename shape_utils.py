@@ -63,7 +63,7 @@ def create_shape():
     )
     bpy.ops.object.origin_set(type='GEOMETRY_ORIGIN', center='MEDIAN')
     bpy.ops.object.join()
-    bpy.context.object.scale = (0.975, 0.975, 0.975)
+    bpy.context.object.scale = (0.3, 0.3, 0.3)
 
     return params
 
@@ -107,8 +107,14 @@ def load_shape(params):
     )
     bpy.ops.object.origin_set(type='GEOMETRY_ORIGIN', center='MEDIAN')
     bpy.ops.object.join()
-    bpy.context.object.scale = (0.975, 0.975, 0.975)
-    # scale 0.3
+    obj = bpy.context.active_object
+    if "rotation_euler" in params.keys():
+        re = params["rotation_euler"]
+        obj.rotation_euler.x = re.x
+        obj.rotation_euler.y = re.y
+        obj.rotation_euler.z = re.z
+
+    bpy.context.object.scale = (0.3, 0.3, 0.3)
 
 def sample_shapenet_obj(obj_file=None):
     if obj_file is not None:
