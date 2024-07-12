@@ -110,9 +110,9 @@ def load_shape(params):
     obj = bpy.context.active_object
     if "rotation_euler" in params.keys():
         re = params["rotation_euler"]
-        obj.rotation_euler.x = re.x
-        obj.rotation_euler.y = re.y
-        obj.rotation_euler.z = re.z
+        obj.rotation_euler.x = re[0]
+        obj.rotation_euler.y = re[1]
+        obj.rotation_euler.z = re[2]
 
     bpy.context.object.scale = (0.3, 0.3, 0.3)
 
